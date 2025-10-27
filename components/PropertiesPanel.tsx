@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shape, Circle, Rectangle, Slider, Programming, ProgrammingLine, Button } from '../types';
+import { Shape, Circle, Rectangle, Slider, Programming, ProgrammingLine, Button, Firmata, InputMapping, OutputMapping } from '../types';
 
 interface PropertiesPanelProps {
   selectedShape: Shape | null;
@@ -48,6 +48,17 @@ const getTargetProperties = (targetShape: Shape | null | undefined): string[] =>
     }
     const blacklistedKeys = ['view', 'movingAverageWindow'];
     return numericKeys.filter(key => !blacklistedKeys.includes(key)).sort();
+}
+
+const getSourceProperties = (sourceShape: Shape | null | undefined): string[] => {
+    if (!sourceShape) return [];
+    const numericKeys: string[] = [];
+     for (const key in sourceShape) {
+        if (typeof (sourceShape as any)[key] === 'number') {
+            numericKeys.push(key);
+        }
+    }
+    return numericKeys.sort();
 }
 
 
@@ -138,6 +149,50 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
       .map((line, newIndex) => ({ ...line, ordem: newIndex + 1 }));
     onUpdateShape(selectedShape.id, { linhas: newLinhas });
   };
+
+  // --- FIRMATA MAPPING HANDLERS ---
+  const handleMappingChange = (
+    type: 'inputs' | 'outputs',
+    index: number,
+    updatedMapping: Partial<InputMapping | OutputMapping>
+  ) => {
+    if (selectedShape?.type !== 'firmata') return;
+    const newMappings = { ...selectedShape.mappings };
+    const newTypedMappings = [...newMappings[type]];
+    newTypedMappings[index] = { ...newTypedMappings[index], ...updatedMapping };
+    
+    if (('targetId' in updatedMapping) || ('sourceId' in updatedMapping)) {
+        (newTypedMappings[index] as any).property = '';
+    }
+    
+    onUpdateShape(selectedShape.id, { mappings: { ...newMappings, [type]: newTypedMappings } });
+  };
+
+  const addMapping = (type: 'inputs' | 'outputs') => {
+    if (selectedShape?.type !== 'firmata') return;
+    const newMappings = { ...selectedShape.mappings };
+
+    if (type === 'inputs') {
+        const newInput: InputMapping = {
+            pin: 14, mode: 'Analog', targetId: '', property: '', min: 0, max: 255, adcBits: 10, adcMax: 1023
+        };
+        newMappings.inputs = [...newMappings.inputs, newInput];
+    } else {
+        const newOutput: OutputMapping = {
+            sourceId: '', property: '', pin: 13, mode: 'Digital'
+        };
+        newMappings.outputs = [...newMappings.outputs, newOutput];
+    }
+    onUpdateShape(selectedShape.id, { mappings: newMappings });
+  };
+
+  const deleteMapping = (type: 'inputs' | 'outputs', index: number) => {
+    if (selectedShape?.type !== 'firmata') return;
+    const newMappings = { ...selectedShape.mappings };
+    const newTypedMappings = newMappings[type].filter((_, i) => i !== index);
+    onUpdateShape(selectedShape.id, { mappings: { ...newMappings, [type]: newTypedMappings } });
+  };
+  // --- END FIRMATA HANDLERS ---
 
   const targetShape = (selectedShape?.type === 'slider' || selectedShape?.type === 'button') && selectedShape.targetId 
         ? shapes.find(s => s.id === selectedShape.targetId) 
@@ -338,6 +393,74 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                             );
                         })}
                         <button onClick={addProgrammingLine} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-1 px-2 rounded">Add Line</button>
+                    </div>
+                </>
+            )}
+
+            {selectedShape.type === 'firmata' && (
+                <>
+                    <div className="space-y-2 pt-2 border-t border-gray-700">
+                        <h3 className="text-md font-semibold text-white">Input Mappings</h3>
+                        {selectedShape.mappings.inputs.map((mapping, index) => {
+                             const targetShape = shapes.find(s => s.id === mapping.targetId);
+                             const targetProperties = getTargetProperties(targetShape);
+                             return (
+                                <div key={`in-${index}`} className="p-2 bg-gray-800 rounded space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-bold text-gray-400">Input Pin {mapping.pin}</span>
+                                        <button onClick={() => deleteMapping('inputs', index)} className="text-red-500 hover:text-red-400 text-xs">Delete</button>
+                                    </div>
+                                    <div className="flex space-x-2">
+                                        <input type="number" value={mapping.pin} onChange={e => handleMappingChange('inputs', index, { pin: parseInt(e.target.value) || 0 })} placeholder="Pin" className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm" />
+                                        <select value={mapping.mode} onChange={e => handleMappingChange('inputs', index, { mode: e.target.value as 'Analog' | 'Digital' })} className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm">
+                                            <option>Analog</option>
+                                            <option>Digital</option>
+                                        </select>
+                                    </div>
+                                    <select value={mapping.targetId} onChange={e => handleMappingChange('inputs', index, { targetId: e.target.value })} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm">
+                                        <option value="">Select Target...</option>
+                                        {shapes.filter(s => s.id !== selectedShape.id).map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                                    </select>
+                                    <select value={mapping.property} onChange={e => handleMappingChange('inputs', index, { property: e.target.value })} disabled={!mapping.targetId} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm disabled:opacity-50">
+                                        <option value="">Select Property...</option>
+                                        {targetProperties.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                             );
+                        })}
+                        <button onClick={() => addMapping('inputs')} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-1 px-2 rounded">Add Input</button>
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-gray-700">
+                        <h3 className="text-md font-semibold text-white">Output Mappings</h3>
+                        {selectedShape.mappings.outputs.map((mapping, index) => {
+                            const sourceShape = shapes.find(s => s.id === mapping.sourceId);
+                            const sourceProperties = getSourceProperties(sourceShape);
+                            return (
+                                <div key={`out-${index}`} className="p-2 bg-gray-800 rounded space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-bold text-gray-400">Output Pin {mapping.pin}</span>
+                                        <button onClick={() => deleteMapping('outputs', index)} className="text-red-500 hover:text-red-400 text-xs">Delete</button>
+                                    </div>
+                                    <select value={mapping.sourceId} onChange={e => handleMappingChange('outputs', index, { sourceId: e.target.value })} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm">
+                                        <option value="">Select Source...</option>
+                                        {shapes.filter(s => s.id !== selectedShape.id).map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                                    </select>
+                                    <select value={mapping.property} onChange={e => handleMappingChange('outputs', index, { property: e.target.value })} disabled={!mapping.sourceId} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm disabled:opacity-50">
+                                        <option value="">Select Property...</option>
+                                        {sourceProperties.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                     <div className="flex space-x-2">
+                                        <input type="number" value={mapping.pin} onChange={e => handleMappingChange('outputs', index, { pin: parseInt(e.target.value) || 0 })} placeholder="Pin" className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm" />
+                                        <select value={mapping.mode} onChange={e => handleMappingChange('outputs', index, { mode: e.target.value as 'Digital' | 'PWM' })} className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm">
+                                            <option>Digital</option>
+                                            <option>PWM</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        <button onClick={() => addMapping('outputs')} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-1 px-2 rounded">Add Output</button>
                     </div>
                 </>
             )}

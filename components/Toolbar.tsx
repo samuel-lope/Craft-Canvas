@@ -6,6 +6,7 @@ interface ToolbarProps {
   onAddSlider: () => void;
   onAddProgramming: () => void;
   onAddButton: () => void;
+  onAddFirmata: () => void;
   onClear: () => void;
 }
 
@@ -21,7 +22,7 @@ const ToolbarButton: React.FC<{ onClick: () => void; children: React.ReactNode; 
 );
 
 
-const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSlider, onAddProgramming, onAddButton, onClear }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSlider, onAddProgramming, onAddButton, onAddFirmata, onClear }) => {
   return (
     <aside className="w-24 bg-gray-900 p-3 flex flex-col items-center space-y-4 border-r border-gray-700">
         <div className="w-full space-y-2">
@@ -53,6 +54,13 @@ const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSli
             <ToolbarButton onClick={onAddButton} title="Switch">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 22a10 10 0 110-20 10 10 0 010 20zm0-18v2m-6.364 2.636l1.414 1.414M2.227 12h2m2.636 6.364l1.414-1.414M12 18v2m6.364-2.636l-1.414-1.414M19.773 12h-2m-2.636-6.364l-1.414 1.414" />
+                </svg>
+            </ToolbarButton>
+
+            <ToolbarButton onClick={onAddFirmata} title="Firmata">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 4V2M15 4V2M9 20v2M15 20v2M4 9H2M4 15H2M20 9h2M20 15h2"></path>
                 </svg>
             </ToolbarButton>
         </div>

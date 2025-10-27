@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, MouseEvent } from 'react';
-import { Shape, Circle, Rectangle, Slider, Programming, Button } from '../types';
+import { Shape, Circle, Rectangle, Slider, Programming, Button, Firmata } from '../types';
 
 type Interaction = {
   type: 'move' | 'resize' | 'slide';
@@ -172,10 +172,18 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
 
 
   const renderHandles = (shape: Shape) => {
-      if (shape.type === 'slider' || shape.type === 'button') {
+      if (shape.type === 'slider' || shape.type === 'button' || shape.type === 'firmata') {
         const { x, y } = shape;
-        const width = shape.type === 'slider' ? SLIDER_WIDTH : 60;
-        const height = shape.type === 'slider' ? SLIDER_HEIGHT : 60;
+        let width = 60;
+        let height = 60;
+
+        if (shape.type === 'slider') {
+          width = SLIDER_WIDTH;
+          height = SLIDER_HEIGHT;
+        } else if (shape.type === 'firmata') {
+          width = 200;
+          height = 120;
+        }
 
         return (
             <rect
@@ -366,7 +374,7 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
                     >
                         <g transform={`scale(${iconSize / 960}) translate(-480, 480)`}>
                             <path
-                                d="M480.04-269q87.58 0 149.27-61.73Q691-392.46 691-480.04q0-87.58-61.73-149.27Q567.54-691 479.96-691q-87.58 0-149.27 61.73Q269-567.54 269-479.96q0 87.58 61.73 149.27Q392.46-269 480.04-269ZM480-34q-92.64 0-174.47-34.6-81.82-34.61-142.07-94.86T68.6-305.53Q34-387.36 34-480q0-92.9 34.66-174.45 34.67-81.55 95.18-141.94 60.51-60.39 142.07-95Q387.48-926 480-926q92.89 0 174.48 34.59 81.59 34.6 141.96 94.97 60.37 60.37 94.97 141.99Q926-572.83 926-479.92q0 92.92-34.61 174.25-34.61 81.32-95 141.83Q736-103.33 654.45-68.66 572.9-34 480-34Zm-.23-136q130.74 0 220.49-89.51Q790-349.03 790-479.77t-89.51-220.49Q610.97-790 480.23-790t-220.49 89.51Q170-610.97 170-480.23t89.51 220.49Q349.03-170 479.77-170Z"
+                                d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-160q100 0 170-70t70-170q0-51-19-94.5T650-650l-57 57q22 22 34.5 51t12.5 62q0 66-47 113t-113 47q-66 0-113-47t-47-113q0-33 12.5-62t34.5-51l-57-57q-32 32-51 75.5T240-480q0 100 70 170t170 70Zm-40-240h80v-240h-80v240Z"
                                 fill={color}
                                 className="transition-colors"
                             />
@@ -456,6 +464,80 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
                                 />
                             </clipPath>
                         </defs>
+                    </g>
+                );
+            }
+            if (shape.type === 'firmata') {
+                const width = 200;
+                const height = 120;
+                const titleBarHeight = 24;
+                const startX = shape.x - width / 2;
+                const startY = shape.y - height / 2;
+
+                return (
+                    <g key={shape.id} onMouseDown={e => handleMouseDownOnShape(e, shape)} className="cursor-move">
+                        <rect
+                            x={startX}
+                            y={startY}
+                            width={width}
+                            height={height}
+                            fill="#2d3748"
+                            stroke={isSelected ? '#3b82f6' : '#4a5568'}
+                            strokeWidth={isSelected ? 2 : 1}
+                            rx="4"
+                        />
+                        <rect
+                            x={startX}
+                            y={startY}
+                            width={width}
+                            height={titleBarHeight}
+                            fill={isSelected ? '#4f46e5' : '#4a5568'}
+                            rx="4"
+                            ry="4"
+                        />
+                         <text
+                            x={shape.x}
+                            y={startY + titleBarHeight / 2}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fill="white"
+                            fontSize="12"
+                            fontWeight="bold"
+                            className="pointer-events-none select-none"
+                         >
+                            {shape.nome}
+                        </text>
+                        
+                        <g transform={`translate(${startX + 15}, ${startY + titleBarHeight + 20})`}>
+                            <circle cx="0" cy="0" r="5" fill="#ef4444" />
+                            <text x="10" y="4" fill="#a0aec0" fontSize="12" className="select-none">Disconnected</text>
+                        </g>
+
+                        <text x={startX + 15} y={startY + titleBarHeight + 50} fill="#a0aec0" fontSize="12" className="select-none">Baud: 57600</text>
+                        
+                        <g className="cursor-pointer" onMouseDown={e => e.stopPropagation()}>
+                            <rect 
+                                x={startX + 15}
+                                y={startY + height - 45}
+                                width={width - 30}
+                                height={30}
+                                rx="4"
+                                fill="#4f46e5"
+                                className="hover:fill-indigo-500"
+                            />
+                            <text
+                                x={shape.x}
+                                y={startY + height - 30}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fill="white"
+                                fontSize="12"
+                                fontWeight="bold"
+                                className="pointer-events-none select-none"
+                            >
+                                Connect
+                            </text>
+                        </g>
                     </g>
                 );
             }

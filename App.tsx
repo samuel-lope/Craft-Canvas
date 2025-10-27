@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Shape, Circle, Rectangle, AppData, Slider, Programming, ProgrammingLine, Button } from './types';
+import { Shape, Circle, Rectangle, AppData, Slider, Programming, ProgrammingLine, Button, Firmata } from './types';
 import Toolbar from './components/Toolbar';
 import Canvas from './components/Canvas';
 import { Header } from './components/Header';
@@ -37,10 +37,10 @@ const App: React.FC = () => {
     }
   }, [appData]);
 
-  const addShape = (shapeType: 'circulo' | 'retangulo' | 'slider' | 'programming' | 'button') => {
+  const addShape = (shapeType: 'circulo' | 'retangulo' | 'slider' | 'programming' | 'button' | 'firmata') => {
     const baseProps = {
       id: `${shapeType}_${Date.now()}`,
-      nome: shapeType === 'circulo' ? 'Novo Círculo' : shapeType === 'retangulo' ? 'Novo Retângulo' : shapeType === 'slider' ? 'Novo Slider' : shapeType === 'programming' ? 'Código' : 'Novo Switch',
+      nome: shapeType === 'circulo' ? 'Novo Círculo' : shapeType === 'retangulo' ? 'Novo Retângulo' : shapeType === 'slider' ? 'Novo Slider' : shapeType === 'programming' ? 'Código' : shapeType === 'button' ? 'Novo Switch' : 'Firmata',
       view: appData.objects.length,
       x: 250,
       y: 150,
@@ -111,7 +111,7 @@ const App: React.FC = () => {
         linhas: [],
       };
       newShape = programming;
-    } else { // button
+    } else if (shapeType === 'button') {
       const button: Button = {
         ...baseProps,
         type: 'button',
@@ -122,6 +122,16 @@ const App: React.FC = () => {
         currentState: 0,
       };
       newShape = button;
+    } else { // firmata
+      const firmata: Firmata = {
+        ...baseProps,
+        type: 'firmata',
+        mappings: {
+          inputs: [],
+          outputs: [],
+        }
+      };
+      newShape = firmata;
     }
     
     setAppData(prevData => ({
@@ -294,6 +304,7 @@ const App: React.FC = () => {
   const handleAddSlider = () => addShape('slider');
   const handleAddProgramming = () => addShape('programming');
   const handleAddButton = () => addShape('button');
+  const handleAddFirmata = () => addShape('firmata');
   const handleClearCanvas = () => {
     setAppData(prevData => ({
         ...prevData,
@@ -315,6 +326,7 @@ const App: React.FC = () => {
           onAddSlider={handleAddSlider}
           onAddProgramming={handleAddProgramming}
           onAddButton={handleAddButton}
+          onAddFirmata={handleAddFirmata}
           onClear={handleClearCanvas}
         />
         <main className="flex-grow p-4 md:p-6 bg-gray-900 overflow-auto">

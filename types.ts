@@ -91,8 +91,39 @@ export interface Button {
   currentState: 0 | 1;
 }
 
+export interface InputMapping {
+  pin: number;
+  mode: 'Analog' | 'Digital';
+  targetId: string;
+  property: string;
+  min: number;
+  max: number;
+  adcBits: number;
+  adcMax: number;
+}
 
-export type Shape = Circle | Rectangle | Slider | Programming | Button;
+export interface OutputMapping {
+  sourceId: string;
+  property: string;
+  pin: number;
+  mode: 'Digital' | 'PWM';
+}
+
+export interface Firmata {
+  id: string;
+  type: 'firmata';
+  nome: string;
+  view: number;
+  x: number;
+  y: number;
+  mappings: {
+    inputs: InputMapping[];
+    outputs: OutputMapping[];
+  };
+}
+
+
+export type Shape = Circle | Rectangle | Slider | Programming | Button | Firmata;
 
 export interface AppData {
   theme: {
