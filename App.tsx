@@ -187,86 +187,23 @@ const App: React.FC = () => {
     }));
     setSelectedShapeId(newShape.id);
   };
-  
+
+  // FIX: `updateShape` is now a stable function that doesn't depend on other callbacks.
+  // It focuses solely on updating the state, while propagation/trigger logic is handled separately
+  // by callers or effects to avoid stale closures and dependency cycles.
   const updateShape = useCallback((shapeId: string, updatedProperties: Partial<Shape>) => {
     setAppData(prevData => {
-        let objects = [...prevData.objects];
+        const objects = [...prevData.objects];
+        const shapeIndex = objects.findIndex(s => s.id === shapeId);
+        if (shapeIndex === -1) return prevData;
         
-        const updateQueue: { id: string, props: Partial<Shape> }[] = [{ id: shapeId, props: updatedProperties }];
-        const processedIds = new Set<string>();
-
-        while (updateQueue.length > 0) {
-            const { id, props } = updateQueue.shift()!;
-
-            if (processedIds.has(id) && !('value' in props || 'currentState' in props)) continue;
-            
-            const shapeIndex = objects.findIndex(s => s.id === id);
-            if (shapeIndex === -1) continue;
-
-            const oldShape = objects[shapeIndex];
-            const updatedShape = { ...oldShape, ...props };
-            // FIX: Cast the updated shape to 'Shape' to resolve a complex type inference error.
-            // TypeScript struggles to correctly infer the type of `updatedShape` after spreading properties
-            // onto a discriminated union, so this assertion clarifies that the object is still a valid shape.
-            objects[shapeIndex] = updatedShape as Shape;
-            processedIds.add(id);
-
-            // 1. Propagate to target (for sliders)
-            if (updatedShape.type === 'slider' && 'value' in props) {
-                if (updatedShape.targetId && updatedShape.targetProperty) {
-                    const targetIndex = objects.findIndex(o => o.id === updatedShape.targetId);
-                    if (targetIndex !== -1) {
-                        // This direct update is fine for sliders, as it's the end of this chain.
-                        // We will add to queue for consistency and complex interactions later.
-                        updateQueue.push({ id: updatedShape.targetId, props: { [updatedShape.targetProperty]: updatedShape.value } });
-                    }
-                }
-            }
-
-            // 2. Propagate to inherited sliders (if this is a master slider)
-            if (updatedShape.type === 'slider' && 'value' in props) {
-                const masterSlider = updatedShape;
-                objects.forEach(slaveCandidate => {
-                    if (slaveCandidate.type === 'slider' && slaveCandidate.inheritedSliderId === masterSlider.id) {
-                        const slaveSlider = slaveCandidate;
-                        const masterRange = masterSlider.max - masterSlider.min;
-                        const slaveRange = slaveSlider.max - slaveSlider.min;
-                        
-                        const newSlaveValue = masterRange === 0
-                            ? slaveSlider.min
-                            : slaveSlider.min + ((masterSlider.value - masterSlider.min) / masterRange) * slaveRange;
-                        
-                        if (slaveSlider.value !== newSlaveValue) {
-                           updateQueue.push({ id: slaveSlider.id, props: { value: newSlaveValue } });
-                        }
-                    }
-                });
-            }
-
-            // 3. Propagate to target (for buttons)
-            if (updatedShape.type === 'button' && 'currentState' in props) {
-                if (updatedShape.targetId && updatedShape.targetProperty) {
-                    const valueToSend = updatedShape.currentState === 1 ? updatedShape.valueOn : updatedShape.valueOff;
-                    const parsedValue = parseFloat(valueToSend);
-                    if (!isNaN(parsedValue)) {
-                       updateQueue.push({ id: updatedShape.targetId, props: { [updatedShape.targetProperty]: parsedValue } });
-                    }
-                }
-            }
-
-            // 4. Trigger manual programming blocks
-             objects.forEach(progCandidate => {
-                if (progCandidate.type === 'programming' && progCandidate.executionMode === 'manual' && progCandidate.manualTriggerId === updatedShape.id) {
-                    executeProgrammingStep(progCandidate.id, (prog) => prog.linhas);
-                }
-            });
-        }
+        objects[shapeIndex] = { ...objects[shapeIndex], ...updatedProperties } as Shape;
         
         return { ...prevData, objects };
     });
   }, []);
 
-  const executeProgrammingStep = (progId: string, getLinhas: (prog: Programming) => ProgrammingLine[]) => {
+  const executeProgrammingStep = useCallback((progId: string, getLinhas: (prog: Programming) => ProgrammingLine[]) => {
       if (triggerCooldowns.current[progId]) return;
 
       triggerCooldowns.current[progId] = true;
@@ -275,7 +212,9 @@ const App: React.FC = () => {
       }, 100);
 
       setExecutionState(prevState => {
-          const prog = appData.objects.find(o => o.id === progId) as Programming;
+          // FIX: Use the appDataRef to ensure the most current state is used for finding the programming object.
+          // This prevents stale closures from causing the execution to fail or use outdated data.
+          const prog = appDataRef.current.objects.find(o => o.id === progId) as Programming;
           if (!prog) return prevState;
           
           const linhas = getLinhas(prog);
@@ -295,14 +234,84 @@ const App: React.FC = () => {
           }
           return { ...prevState, [progId]: nextOrdem };
       });
-  };
+  }, [updateShape]);
+
+  // A more advanced update handler that also manages propagation and triggers.
+  const updateShapeAndPropagate = useCallback((shapeId: string, updatedProperties: Partial<Shape>) => {
+    setAppData(prevData => {
+        let objects = [...prevData.objects];
+        
+        const updateQueue: { id: string, props: Partial<Shape> }[] = [{ id: shapeId, props: updatedProperties }];
+        const processedIds = new Set<string>();
+        const triggeredProgs = new Set<string>();
+
+        while (updateQueue.length > 0) {
+            const { id, props } = updateQueue.shift()!;
+
+            if (processedIds.has(id) && !('value' in props || 'currentState' in props)) continue;
+            
+            const shapeIndex = objects.findIndex(s => s.id === id);
+            if (shapeIndex === -1) continue;
+
+            const oldShape = objects[shapeIndex];
+            const updatedShape = { ...oldShape, ...props };
+            objects[shapeIndex] = updatedShape as Shape;
+            processedIds.add(id);
+
+            if (updatedShape.type === 'slider' && 'value' in props) {
+                if (updatedShape.targetId && updatedShape.targetProperty) {
+                    updateQueue.push({ id: updatedShape.targetId, props: { [updatedShape.targetProperty]: updatedShape.value } });
+                }
+                objects.forEach(slaveCandidate => {
+                    if (slaveCandidate.type === 'slider' && slaveCandidate.inheritedSliderId === updatedShape.id) {
+                        const masterSlider = updatedShape;
+                        const slaveSlider = slaveCandidate;
+                        const masterRange = masterSlider.max - masterSlider.min;
+                        const slaveRange = slaveSlider.max - slaveSlider.min;
+                        const newSlaveValue = masterRange === 0
+                            ? slaveSlider.min
+                            : slaveSlider.min + ((masterSlider.value - masterSlider.min) / masterRange) * slaveRange;
+                        if (slaveSlider.value !== newSlaveValue) {
+                           updateQueue.push({ id: slaveSlider.id, props: { value: newSlaveValue } });
+                        }
+                    }
+                });
+            }
+
+            if (updatedShape.type === 'button' && 'currentState' in props) {
+                if (updatedShape.targetId && updatedShape.targetProperty) {
+                    const valueToSend = updatedShape.currentState === 1 ? updatedShape.valueOn : updatedShape.valueOff;
+                    const parsedValue = parseFloat(valueToSend);
+                    if (!isNaN(parsedValue)) {
+                       updateQueue.push({ id: updatedShape.targetId, props: { [updatedShape.targetProperty]: parsedValue } });
+                    }
+                }
+            }
+
+            objects.forEach(progCandidate => {
+                if (progCandidate.type === 'programming' && progCandidate.executionMode === 'manual' && progCandidate.manualTriggerId === updatedShape.id) {
+                    triggeredProgs.add(progCandidate.id);
+                }
+            });
+        }
+        
+        // Trigger programming blocks outside the update loop.
+        triggeredProgs.forEach(progId => {
+            const prog = objects.find(o => o.id === progId) as Programming;
+            if (prog) {
+                 executeProgrammingStep(prog.id, (p) => p.linhas);
+            }
+        });
+
+        return { ...prevData, objects };
+    });
+  }, [executeProgrammingStep]);
+
 
   useEffect(() => {
     const timers: number[] = [];
     appData.objects.forEach(shape => {
       if (shape.type === 'programming' && shape.executionMode === 'auto' && shape.linhas.length > 0) {
-        // FIX: Use window.setInterval to explicitly use the browser's implementation,
-        // which returns a `number`, resolving the type conflict with NodeJS.Timeout.
         const timer = window.setInterval(() => {
           executeProgrammingStep(shape.id, (prog) => prog.linhas);
         }, shape.autoInterval);
@@ -311,10 +320,9 @@ const App: React.FC = () => {
     });
 
     return () => {
-      // FIX: Use window.clearInterval to match the `number` type expected by the browser.
       timers.forEach(window.clearInterval);
     };
-  }, [appData.objects]);
+  }, [appData.objects, executeProgrammingStep]);
 
 
   const deleteShape = useCallback((shapeId: string) => {
@@ -382,7 +390,7 @@ const App: React.FC = () => {
                 const targetMax = mapping.max;
                 const range = targetMax - targetMin;
                 const mappedValue = targetMin + (value / adcMax) * range;
-                updateShape(mapping.targetId, { [mapping.property]: mappedValue });
+                updateShapeAndPropagate(mapping.targetId, { [mapping.property]: mappedValue });
             }
         } else if (parserState.command === DIGITAL_MESSAGE) {
             const portNum = parserState.pinOrPort!;
@@ -392,11 +400,11 @@ const App: React.FC = () => {
                 if (mapping && mapping.targetId && mapping.property) {
                     const pinState = (value >> i) & 0x01;
                     const mappedValue = pinState === 1 ? mapping.max : mapping.min;
-                    updateShape(mapping.targetId, { [mapping.property]: mappedValue });
+                    updateShapeAndPropagate(mapping.targetId, { [mapping.property]: mappedValue });
                 }
             }
         }
-    }, [updateShape]);
+    }, [updateShapeAndPropagate]);
 
     const readFromPort = useCallback(async (firmataId: string, connection: FirmataConnection) => {
         while (connection.port.readable) {
@@ -577,7 +585,7 @@ const App: React.FC = () => {
             shapes={appData.objects}
             selectedShapeId={selectedShapeId}
             onSelectShape={setSelectedShapeId}
-            onUpdateShape={updateShape}
+            onUpdateShape={updateShapeAndPropagate}
             executionState={executionState}
             onConnectFirmata={handleConnectFirmata}
             onDisconnectFirmata={handleDisconnectFirmata}
@@ -586,7 +594,7 @@ const App: React.FC = () => {
         <PropertiesPanel
             selectedShape={selectedShape}
             shapes={appData.objects}
-            onUpdateShape={updateShape}
+            onUpdateShape={updateShapeAndPropagate}
             onDeleteShape={deleteShape}
         />
       </div>
