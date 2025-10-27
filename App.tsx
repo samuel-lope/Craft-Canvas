@@ -32,6 +32,10 @@ const REPORT_ANALOG = 0xC0;
 const REPORT_DIGITAL = 0xD0;
 const ANALOG_MESSAGE = 0xE0;
 const DIGITAL_MESSAGE = 0x90;
+const START_SYSEX = 0xF0;
+const END_SYSEX = 0xF7;
+const QUERY_FIRMWARE = 0x79;
+
 
 interface FirmataConnection {
     port: SerialPort;
@@ -42,7 +46,8 @@ interface FirmataConnection {
         pinOrPort: number | null;
         buffer: number[];
         bytesToCollect: number;
-        state: 'idle' | 'collecting';
+        sysexBuffer: number[];
+        state: 'idle' | 'collecting' | 'sysex';
     };
 }
 
@@ -58,6 +63,7 @@ const App: React.FC = () => {
   const digitalPortStates = useRef<Record<string, number[]>>({});
   const lastSentOutputValues = useRef<Record<string, any>>({});
   const appDataRef = useRef(appData);
+  const writerIntervals = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     appDataRef.current = appData;
@@ -406,6 +412,29 @@ const App: React.FC = () => {
         }
     }, [updateShapeAndPropagate]);
 
+    const setupFirmataPins = useCallback(async (firmataId: string, writer: WritableStreamDefaultWriter<Uint8Array>) => {
+        const firmata = appDataRef.current.objects.find(s => s.id === firmataId) as Firmata;
+        if (!firmata) return;
+    
+        for (const mapping of firmata.mappings.outputs) {
+          const mode = mapping.mode === 'PWM' ? 0x03 : 0x01; // 3 = PWM, 1 = OUTPUT
+          await writer.write(new Uint8Array([SET_PIN_MODE, mapping.pin, mode]));
+        }
+        for (const mapping of firmata.mappings.inputs) {
+          if (mapping.mode === 'Analog') {
+            const analogPin = mapping.pin - 14; // A0 is pin 14, firmata uses 0 for A0
+            if (analogPin >= 0) {
+              await writer.write(new Uint8Array([SET_PIN_MODE, mapping.pin, 0x02])); // 2 = ANALOG
+              await writer.write(new Uint8Array([REPORT_ANALOG | analogPin, 1])); // Enable reporting
+            }
+          } else { // Digital
+            await writer.write(new Uint8Array([SET_PIN_MODE, mapping.pin, 0x00])); // 0 = INPUT
+            const portNum = Math.floor(mapping.pin / 8);
+            await writer.write(new Uint8Array([REPORT_DIGITAL | portNum, 1])); // Enable reporting for port
+          }
+        }
+    }, []);
+
     const readFromPort = useCallback(async (firmataId: string, connection: FirmataConnection) => {
         while (connection.port.readable) {
             try {
@@ -414,6 +443,30 @@ const App: React.FC = () => {
 
                 for (const byte of value) {
                     const parser = connection.parserState;
+                    
+                    if (byte === START_SYSEX) {
+                        parser.state = 'sysex';
+                        parser.sysexBuffer = [];
+                        continue;
+                    }
+
+                    if (byte === END_SYSEX) {
+                        if (parser.state === 'sysex') {
+                            parser.state = 'idle';
+                            if (parser.sysexBuffer[0] === QUERY_FIRMWARE) {
+                                // Firmware response received, now configure pins
+                                updateShape(firmataId, { connectionStatus: 'connected' });
+                                setupFirmataPins(firmataId, connection.writer);
+                            }
+                        }
+                        continue;
+                    }
+
+                    if (parser.state === 'sysex') {
+                        parser.sysexBuffer.push(byte);
+                        continue;
+                    }
+                    
                     if (parser.state === 'idle') {
                         const command = byte & 0xF0;
                         if (command === ANALOG_MESSAGE || command === DIGITAL_MESSAGE) {
@@ -421,6 +474,7 @@ const App: React.FC = () => {
                             parser.pinOrPort = byte & 0x0F;
                             parser.state = 'collecting';
                             parser.bytesToCollect = 2;
+                            parser.buffer = []; // FIX: Reset buffer for new message
                         }
                     } else if (parser.state === 'collecting') {
                         parser.buffer.push(byte);
@@ -436,115 +490,122 @@ const App: React.FC = () => {
                 break;
             }
         }
-    }, [processFirmataMessage]);
+    }, [processFirmataMessage, updateShape, setupFirmataPins]);
 
-  const handleConnectFirmata = useCallback(async (firmataId: string) => {
-    if (firmataConnections.current.has(firmataId)) return;
-    updateShape(firmataId, { connectionStatus: 'connecting' });
+    const handleConnectFirmata = useCallback(async (firmataId: string) => {
+        if (firmataConnections.current.has(firmataId)) return;
+        updateShape(firmataId, { connectionStatus: 'connecting' });
 
-    try {
-        if (!navigator.serial) {
-            alert('Web Serial API not supported.');
-            throw new Error('Web Serial not supported');
-        }
-        const port = await navigator.serial.requestPort();
-        await port.open({ baudRate: 57600 });
-
-        const writer = port.writable.getWriter();
-        const reader = port.readable.getReader();
-        const connection: FirmataConnection = {
-            port, writer, reader,
-            parserState: { command: null, pinOrPort: null, buffer: [], bytesToCollect: 0, state: 'idle' }
-        };
-        firmataConnections.current.set(firmataId, connection);
-        digitalPortStates.current[firmataId] = Array(16).fill(0);
-
-        const firmata = appData.objects.find(s => s.id === firmataId) as Firmata;
-        if (firmata) {
-            for (const mapping of firmata.mappings.outputs) {
-                const mode = mapping.mode === 'PWM' ? 0x03 : 0x01; // 3 = PWM, 1 = OUTPUT
-                await writer.write(new Uint8Array([SET_PIN_MODE, mapping.pin, mode]));
+        try {
+            if (!navigator.serial) {
+                alert('Web Serial API not supported.');
+                throw new Error('Web Serial not supported');
             }
-            for (const mapping of firmata.mappings.inputs) {
-                if (mapping.mode === 'Analog') {
-                    const analogPin = mapping.pin - 14; // A0 is pin 14, firmata uses 0 for A0
-                    if (analogPin >= 0) {
-                        await writer.write(new Uint8Array([SET_PIN_MODE, mapping.pin, 0x02])); // 2 = ANALOG
-                        await writer.write(new Uint8Array([REPORT_ANALOG | analogPin, 1])); // Enable reporting
-                    }
-                } else { // Digital
-                    await writer.write(new Uint8Array([SET_PIN_MODE, mapping.pin, 0x00])); // 0 = INPUT
-                    const portNum = Math.floor(mapping.pin / 8);
-                    await writer.write(new Uint8Array([REPORT_DIGITAL | portNum, 1])); // Enable reporting for port
+            const port = await navigator.serial.requestPort();
+            await port.open({ baudRate: 57600 });
+
+            const writer = port.writable.getWriter();
+            const reader = port.readable.getReader();
+            const connection: FirmataConnection = {
+                port, writer, reader,
+                parserState: { command: null, pinOrPort: null, buffer: [], bytesToCollect: 0, state: 'idle', sysexBuffer: [] }
+            };
+            firmataConnections.current.set(firmataId, connection);
+            digitalPortStates.current[firmataId] = Array(16).fill(0);
+
+            // Start reading immediately. The reader will handle the handshake and pin setup.
+            readFromPort(firmataId, connection);
+
+            // Wait for the board to initialize and then query the firmware.
+            setTimeout(() => {
+                writer.write(new Uint8Array([START_SYSEX, QUERY_FIRMWARE, END_SYSEX]));
+            }, 2000);
+
+        } catch (error) {
+            console.error('Failed to connect to the serial port:', error);
+            updateShape(firmataId, { connectionStatus: 'error' });
+            firmataConnections.current.delete(firmataId);
+            setTimeout(() => {
+                const currentShape = appDataRef.current.objects.find(s => s.id === firmataId);
+                if (currentShape?.type === 'firmata' && currentShape.connectionStatus === 'error') {
+                    updateShape(firmataId, { connectionStatus: 'disconnected' });
                 }
-            }
+            }, 3000);
         }
-        
-        updateShape(firmataId, { connectionStatus: 'connected' });
-        readFromPort(firmataId, connection);
+    }, [updateShape, readFromPort]);
 
-    } catch (error) {
-        console.error('Failed to connect to the serial port:', error);
-        updateShape(firmataId, { connectionStatus: 'error' });
-        firmataConnections.current.delete(firmataId);
-        setTimeout(() => {
-            const currentShape = appDataRef.current.objects.find(s => s.id === firmataId);
-            if (currentShape?.type === 'firmata' && currentShape.connectionStatus === 'error') {
-                 updateShape(firmataId, { connectionStatus: 'disconnected' });
-            }
-        }, 3000);
-    }
-  }, [updateShape, appData.objects, readFromPort]);
-
+    // FIX: Replaced the unstable `useEffect` for writing data with a dedicated writer interval per connection.
+    // This effect manages the entire I/O lifecycle, starting both read and write loops on connection
+    // and cleaning them up on disconnection, preventing race conditions.
     useEffect(() => {
-        const sendFirmataData = async () => {
-            for (const firmata of appData.objects) {
-                if (firmata.type !== 'firmata' || firmata.connectionStatus !== 'connected') continue;
+        appData.objects.forEach(shape => {
+            if (shape.type === 'firmata' && shape.connectionStatus === 'connected' && !writerIntervals.current.has(shape.id)) {
+                const connection = firmataConnections.current.get(shape.id);
+                if (!connection) return;
 
-                const connection = firmataConnections.current.get(firmata.id);
-                if (!connection) continue;
+                // Reader is already started in handleConnectFirmata, so we only start the writer loop here.
+                const intervalId = window.setInterval(async () => {
+                    const currentFirmata = appDataRef.current.objects.find(s => s.id === shape.id) as Firmata;
+                    const allObjects = appDataRef.current.objects;
+                    if (!currentFirmata || !firmataConnections.current.has(shape.id)) return;
 
-                for (const [index, mapping] of firmata.mappings.outputs.entries()) {
-                    if (!mapping.sourceId || !mapping.property) continue;
-                    
-                    const sourceShape = appData.objects.find(s => s.id === mapping.sourceId);
-                    if (!sourceShape) continue;
-                    
-                    const currentValue = (sourceShape as any)[mapping.property];
-                    const key = `${firmata.id}-${index}`;
-                    const lastValue = lastSentOutputValues.current[key];
+                    const conn = firmataConnections.current.get(shape.id)!;
 
-                    if (currentValue !== lastValue) {
-                        lastSentOutputValues.current[key] = currentValue;
+                    for (const [index, mapping] of currentFirmata.mappings.outputs.entries()) {
+                         if (!mapping.sourceId || !mapping.property) continue;
+                        
+                        const sourceShape = allObjects.find(s => s.id === mapping.sourceId);
+                        if (!sourceShape) continue;
+                        
+                        const currentValue = (sourceShape as any)[mapping.property];
+                        const key = `${shape.id}-${index}`;
+                        const lastValue = lastSentOutputValues.current[key];
 
-                        if (mapping.mode === 'PWM') {
-                            const sourceMin = (sourceShape as any).min ?? 0;
-                            const sourceMax = (sourceShape as any).max ?? 1023;
-                            const range = sourceMax - sourceMin;
-                            const scaledValue = range === 0 ? 0 : ((currentValue - sourceMin) / range) * 255;
-                            const pwmValue = Math.round(Math.max(0, Math.min(255, scaledValue)));
-                            const command = new Uint8Array([ANALOG_MESSAGE | mapping.pin, pwmValue & 0x7F, (pwmValue >> 7) & 0x7F]);
-                            await connection.writer.write(command);
-                        } else { // Digital
-                            const digitalValue = currentValue > 0 ? 1 : 0;
-                            const portNumber = Math.floor(mapping.pin / 8);
-                            const pinInPort = mapping.pin % 8;
-                            let portState = digitalPortStates.current[firmata.id]?.[portNumber] ?? 0;
-                            
-                            if (digitalValue === 1) {
-                                portState |= (1 << pinInPort);
-                            } else {
-                                portState &= ~(1 << pinInPort);
+                        if (currentValue !== lastValue) {
+                            lastSentOutputValues.current[key] = currentValue;
+
+                            if (mapping.mode === 'PWM') {
+                                const sourceMin = (sourceShape as any).min ?? 0;
+                                const sourceMax = (sourceShape as any).max ?? 1023;
+                                const range = sourceMax - sourceMin;
+                                const scaledValue = range === 0 ? 0 : ((currentValue - sourceMin) / range) * 255;
+                                const pwmValue = Math.round(Math.max(0, Math.min(255, scaledValue)));
+                                const command = new Uint8Array([ANALOG_MESSAGE | mapping.pin, pwmValue & 0x7F, (pwmValue >> 7) & 0x7F]);
+                                await conn.writer.write(command);
+                            } else { // Digital
+                                const digitalValue = currentValue > 0 ? 1 : 0;
+                                const portNumber = Math.floor(mapping.pin / 8);
+                                const pinInPort = mapping.pin % 8;
+                                let portState = digitalPortStates.current[shape.id]?.[portNumber] ?? 0;
+                                
+                                if (digitalValue === 1) {
+                                    portState |= (1 << pinInPort);
+                                } else {
+                                    portState &= ~(1 << pinInPort);
+                                }
+                                digitalPortStates.current[shape.id][portNumber] = portState;
+                                const command = new Uint8Array([DIGITAL_MESSAGE | portNumber, portState & 0x7F, (portState >> 7) & 0x7F]);
+                                await conn.writer.write(command);
                             }
-                            digitalPortStates.current[firmata.id][portNumber] = portState;
-                            const command = new Uint8Array([DIGITAL_MESSAGE | portNumber, portState & 0x7F, (portState >> 7) & 0x7F]);
-                            await connection.writer.write(command);
                         }
                     }
-                }
+                }, 50); // Send updates 20 times per second
+
+                writerIntervals.current.set(shape.id, intervalId);
             }
+        });
+
+        return () => {
+            // This cleanup runs when the component unmounts, but also helps manage intervals
+            // if appData.objects changes in a way that removes a connected firmata device.
+            writerIntervals.current.forEach((intervalId, firmataId) => {
+                const firmataExists = appData.objects.some(s => s.id === firmataId && s.type === 'firmata' && s.connectionStatus === 'connected');
+                if (!firmataExists) {
+                    window.clearInterval(intervalId);
+                    writerIntervals.current.delete(firmataId);
+                }
+            });
         };
-        sendFirmataData();
     }, [appData.objects]);
 
 
@@ -552,6 +613,12 @@ const App: React.FC = () => {
       const connection = firmataConnections.current.get(firmataId);
       if (connection) {
           try {
+              // Stop the writer interval
+              const intervalId = writerIntervals.current.get(firmataId);
+              if (intervalId) {
+                  window.clearInterval(intervalId);
+                  writerIntervals.current.delete(firmataId);
+              }
               await connection.reader.cancel();
               connection.writer.releaseLock();
               await connection.port.close();
@@ -603,4 +670,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
