@@ -37,7 +37,25 @@ export interface Rectangle extends BaseShape {
   rotation: number;
 }
 
-export type Shape = Circle | Rectangle;
+export interface Slider {
+  id: string;
+  type: 'slider';
+  nome: string;
+  view: number;
+  x: number;
+  y: number;
+  value: number;
+  targetId: string;
+  targetProperty: string;
+  min: number;
+  max: number;
+  inheritedSliderId: string | null;
+  useMovingAverage: boolean;
+  movingAverageWindow: number;
+}
+
+
+export type Shape = Circle | Rectangle | Slider;
 
 export interface AppData {
   theme: {

@@ -1,8 +1,9 @@
 import React from 'react';
-import { Shape, Circle, Rectangle } from '../types';
+import { Shape, Circle, Rectangle, Slider } from '../types';
 
 interface PropertiesPanelProps {
   selectedShape: Shape | null;
+  shapes: Shape[];
   onUpdateShape: (shapeId: string, updatedProperties: Partial<Shape>) => void;
 }
 
@@ -37,17 +38,22 @@ const hexToRgba = (hex: string, alpha = 1): string => {
 };
 
 
-const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, onUpdateShape }) => {
+const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes, onUpdateShape }) => {
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (!selectedShape) return;
     const { name, value, type } = e.target;
-    const finalValue = type === 'number' ? parseFloat(value) || 0 : value;
+    
+    let finalValue: string | number = value;
+    if (type === 'number') {
+        finalValue = parseFloat(value) || 0;
+    }
+
     onUpdateShape(selectedShape.id, { [name]: finalValue } as Partial<Shape>);
   };
 
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape) return;
+    if (!selectedShape || selectedShape.type === 'slider') return;
      const newColor = hexToRgba(e.target.value);
      const updatedHandlers = {
          ...selectedShape.collisionHandlers,
@@ -80,15 +86,56 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, onUpda
             </>
           )}
 
-          <div className="flex items-center">
-             <label className="w-20 text-sm text-gray-400 capitalize">Color</label>
-             <input
-                type="color"
-                value={rgbaToHex(selectedShape.collisionHandlers.onNoCollision.cor)}
-                onChange={handleColorChange}
-                className="w-full h-8 p-1 bg-gray-700 border-none rounded cursor-pointer"
-             />
-          </div>
+          {selectedShape.type === 'slider' && (
+            <>
+                <PropertyInput label="Value" name="value" value={Math.round(selectedShape.value)} onChange={handleInputChange} type="number" />
+                
+                <div className="flex items-center">
+                    <label className="w-20 text-sm text-gray-400 capitalize">Target</label>
+                    <select
+                        name="targetId"
+                        value={selectedShape.targetId}
+                        onChange={handleInputChange}
+                        className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">None</option>
+                        {shapes.filter(s => s.id !== selectedShape.id).map(s => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <PropertyInput label="Property" name="targetProperty" value={selectedShape.targetProperty} onChange={handleInputChange} />
+                <PropertyInput label="Min" name="min" value={selectedShape.min} onChange={handleInputChange} type="number" />
+                <PropertyInput label="Max" name="max" value={selectedShape.max} onChange={handleInputChange} type="number" />
+                
+                <div className="flex items-center">
+                    <label className="w-20 text-sm text-gray-400">Use Avg</label>
+                    <input 
+                        type="checkbox"
+                        name="useMovingAverage"
+                        checked={selectedShape.useMovingAverage}
+                        onChange={(e) => onUpdateShape(selectedShape.id, { useMovingAverage: e.target.checked })}
+                        className="w-5 h-5 bg-gray-700 text-indigo-500 rounded focus:ring-indigo-500"
+                    />
+                </div>
+                
+                <PropertyInput label="Window" name="movingAverageWindow" value={selectedShape.movingAverageWindow} onChange={handleInputChange} type="number" />
+            </>
+          )}
+
+
+          {(selectedShape.type === 'circulo' || selectedShape.type === 'retangulo') && (
+            <div className="flex items-center">
+               <label className="w-20 text-sm text-gray-400 capitalize">Color</label>
+               <input
+                  type="color"
+                  value={rgbaToHex(selectedShape.collisionHandlers.onNoCollision.cor)}
+                  onChange={handleColorChange}
+                  className="w-full h-8 p-1 bg-gray-700 border-none rounded cursor-pointer"
+               />
+            </div>
+          )}
 
         </div>
       ) : (
