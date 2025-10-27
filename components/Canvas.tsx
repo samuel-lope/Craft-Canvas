@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, MouseEvent } from 'react';
-import { Shape, Circle, Rectangle, Slider, Programming } from '../types';
+import { Shape, Circle, Rectangle, Slider, Programming, Button } from '../types';
 
 type Interaction = {
   type: 'move' | 'resize' | 'slide';
@@ -172,14 +172,17 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
 
 
   const renderHandles = (shape: Shape) => {
-      if (shape.type === 'slider') {
+      if (shape.type === 'slider' || shape.type === 'button') {
         const { x, y } = shape;
+        const width = shape.type === 'slider' ? SLIDER_WIDTH : 60;
+        const height = shape.type === 'slider' ? SLIDER_HEIGHT : 60;
+
         return (
             <rect
-                x={x - SLIDER_WIDTH / 2 - 4}
-                y={y - SLIDER_HEIGHT / 2 - 4}
-                width={SLIDER_WIDTH + 8}
-                height={SLIDER_HEIGHT + 8}
+                x={x - width / 2 - 4}
+                y={y - height / 2 - 4}
+                width={width + 8}
+                height={height + 8}
                 fill="none"
                 stroke="#3b82f6"
                 strokeWidth="1"
@@ -320,6 +323,58 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
                     />
                 </g>
             )
+          }
+          if (shape.type === 'button') {
+            const iconSize = 40;
+            const dragAreaSize = 60; // Increased for a larger drag margin
+            const { x, y, nome, currentState, id } = shape;
+            const color = currentState === 1 ? '#22c55e' : '#ef4444'; // Green for ON, Red for OFF
+        
+            return (
+                <g key={id} transform={`translate(${x}, ${y})`}>
+                    <text
+                        x={0}
+                        y={-dragAreaSize / 2 - 5}
+                        textAnchor="middle"
+                        fill={isSelected ? 'white' : '#a0aec0'}
+                        fontSize="12"
+                        className="pointer-events-none select-none"
+                    >
+                       {nome}
+                    </text>
+                    
+                    {/* Invisible drag handle area. Rendered first, so it's "under" the icon. */}
+                    <rect
+                        x={-dragAreaSize / 2}
+                        y={-dragAreaSize / 2}
+                        width={dragAreaSize}
+                        height={dragAreaSize}
+                        fill="transparent"
+                        onMouseDown={e => handleMouseDownOnShape(e, shape)}
+                        className="cursor-move"
+                        rx="8"
+                    />
+        
+                    {/* Clickable icon area for toggling state. Rendered on top of the drag handle. */}
+                    <g
+                      className="cursor-pointer"
+                      onMouseDown={e => {
+                          e.stopPropagation(); // Prevents the drag handle's onMouseDown from firing.
+                          onSelectShape(id);
+                          onUpdateShape(id, { currentState: currentState === 0 ? 1 : 0 });
+                      }}
+                    >
+                        {/* FIX: Removed pointer-events-none from this group to make the icon clickable */}
+                        <g transform={`scale(${iconSize / 24}) translate(-12, -12)`}>
+                            <path
+                                d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"
+                                fill={color}
+                                className="transition-colors"
+                            />
+                        </g>
+                    </g>
+                </g>
+            );
           }
            if (shape.type === 'programming') {
                 const titleBarHeight = 24;

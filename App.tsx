@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Shape, Circle, Rectangle, AppData, Slider, Programming, ProgrammingLine } from './types';
+import { Shape, Circle, Rectangle, AppData, Slider, Programming, ProgrammingLine, Button } from './types';
 import Toolbar from './components/Toolbar';
 import Canvas from './components/Canvas';
 import { Header } from './components/Header';
@@ -37,10 +37,10 @@ const App: React.FC = () => {
     }
   }, [appData]);
 
-  const addShape = (shapeType: 'circulo' | 'retangulo' | 'slider' | 'programming') => {
+  const addShape = (shapeType: 'circulo' | 'retangulo' | 'slider' | 'programming' | 'button') => {
     const baseProps = {
       id: `${shapeType}_${Date.now()}`,
-      nome: shapeType === 'circulo' ? 'Novo Círculo' : shapeType === 'retangulo' ? 'Novo Retângulo' : shapeType === 'slider' ? 'Novo Slider' : 'Código',
+      nome: shapeType === 'circulo' ? 'Novo Círculo' : shapeType === 'retangulo' ? 'Novo Retângulo' : shapeType === 'slider' ? 'Novo Slider' : shapeType === 'programming' ? 'Código' : 'Novo Switch',
       view: appData.objects.length,
       x: 250,
       y: 150,
@@ -99,7 +99,7 @@ const App: React.FC = () => {
           showLabel: true,
       };
       newShape = slider;
-    } else { // programming
+    } else if (shapeType === 'programming') {
       const programming: Programming = {
         ...baseProps,
         type: 'programming',
@@ -111,6 +111,17 @@ const App: React.FC = () => {
         linhas: [],
       };
       newShape = programming;
+    } else { // button
+      const button: Button = {
+        ...baseProps,
+        type: 'button',
+        targetId: '',
+        targetProperty: '',
+        valueOn: '1',
+        valueOff: '0',
+        currentState: 0,
+      };
+      newShape = button;
     }
     
     setAppData(prevData => ({
@@ -130,7 +141,7 @@ const App: React.FC = () => {
         while (updateQueue.length > 0) {
             const { id, props } = updateQueue.shift()!;
 
-            if (processedIds.has(id) && !('value' in props)) continue;
+            if (processedIds.has(id) && !('value' in props || 'currentState' in props)) continue;
             
             const shapeIndex = objects.findIndex(s => s.id === id);
             if (shapeIndex === -1) continue;
@@ -145,9 +156,9 @@ const App: React.FC = () => {
                 if (updatedShape.targetId && updatedShape.targetProperty) {
                     const targetIndex = objects.findIndex(o => o.id === updatedShape.targetId);
                     if (targetIndex !== -1) {
-                        const targetShape = objects[targetIndex];
-                        const newTarget = { ...targetShape, [updatedShape.targetProperty]: updatedShape.value };
-                        objects[targetIndex] = newTarget;
+                        // This direct update is fine for sliders, as it's the end of this chain.
+                        // We will add to queue for consistency and complex interactions later.
+                        updateQueue.push({ id: updatedShape.targetId, props: { [updatedShape.targetProperty]: updatedShape.value } });
                     }
                 }
             }
@@ -172,7 +183,18 @@ const App: React.FC = () => {
                 });
             }
 
-            // 3. Trigger manual programming blocks
+            // 3. Propagate to target (for buttons)
+            if (updatedShape.type === 'button' && 'currentState' in props) {
+                if (updatedShape.targetId && updatedShape.targetProperty) {
+                    const valueToSend = updatedShape.currentState === 1 ? updatedShape.valueOn : updatedShape.valueOff;
+                    const parsedValue = parseFloat(valueToSend);
+                    if (!isNaN(parsedValue)) {
+                       updateQueue.push({ id: updatedShape.targetId, props: { [updatedShape.targetProperty]: parsedValue } });
+                    }
+                }
+            }
+
+            // 4. Trigger manual programming blocks
              objects.forEach(progCandidate => {
                 if (progCandidate.type === 'programming' && progCandidate.executionMode === 'manual' && progCandidate.manualTriggerId === updatedShape.id) {
                     executeProgrammingStep(progCandidate.id, (prog) => prog.linhas);
@@ -271,6 +293,7 @@ const App: React.FC = () => {
   const handleAddRectangle = () => addShape('retangulo');
   const handleAddSlider = () => addShape('slider');
   const handleAddProgramming = () => addShape('programming');
+  const handleAddButton = () => addShape('button');
   const handleClearCanvas = () => {
     setAppData(prevData => ({
         ...prevData,
@@ -291,6 +314,7 @@ const App: React.FC = () => {
           onAddRectangle={handleAddRectangle}
           onAddSlider={handleAddSlider}
           onAddProgramming={handleAddProgramming}
+          onAddButton={handleAddButton}
           onClear={handleClearCanvas}
         />
         <main className="flex-grow p-4 md:p-6 bg-gray-900 overflow-auto">

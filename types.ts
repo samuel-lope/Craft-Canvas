@@ -77,8 +77,22 @@ export interface Programming {
     linhas: ProgrammingLine[];
 }
 
+export interface Button {
+  id: string;
+  type: 'button';
+  nome: string;
+  view: number;
+  x: number;
+  y: number;
+  targetId: string;
+  targetProperty: string;
+  valueOn: string;
+  valueOff: string;
+  currentState: 0 | 1;
+}
 
-export type Shape = Circle | Rectangle | Slider | Programming;
+
+export type Shape = Circle | Rectangle | Slider | Programming | Button;
 
 export interface AppData {
   theme: {

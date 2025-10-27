@@ -5,6 +5,7 @@ interface ToolbarProps {
   onAddRectangle: () => void;
   onAddSlider: () => void;
   onAddProgramming: () => void;
+  onAddButton: () => void;
   onClear: () => void;
 }
 
@@ -20,12 +21,12 @@ const ToolbarButton: React.FC<{ onClick: () => void; children: React.ReactNode; 
 );
 
 
-const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSlider, onAddProgramming, onClear }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSlider, onAddProgramming, onAddButton, onClear }) => {
   return (
     <aside className="w-24 bg-gray-900 p-3 flex flex-col items-center space-y-4 border-r border-gray-700">
         <div className="w-full space-y-2">
             <ToolbarButton onClick={onAddCircle} title="Circle">
-                <svg xmlns="http://www.w.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </ToolbarButton>
@@ -46,6 +47,12 @@ const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSli
             <ToolbarButton onClick={onAddProgramming} title="Code">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+            </ToolbarButton>
+
+            <ToolbarButton onClick={onAddButton} title="Switch">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 22a10 10 0 110-20 10 10 0 010 20zm0-18v2m-6.364 2.636l1.414 1.414M2.227 12h2m2.636 6.364l1.414-1.414M12 18v2m6.364-2.636l-1.414-1.414M19.773 12h-2m-2.636-6.364l-1.414 1.414" />
                 </svg>
             </ToolbarButton>
         </div>

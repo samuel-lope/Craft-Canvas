@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shape, Circle, Rectangle, Slider, Programming, ProgrammingLine } from '../types';
+import { Shape, Circle, Rectangle, Slider, Programming, ProgrammingLine, Button } from '../types';
 
 interface PropertiesPanelProps {
   selectedShape: Shape | null;
@@ -79,7 +79,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
   };
 
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming') return;
+    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming' || selectedShape.type === 'button') return;
      const newColor = hexToRgba(e.target.value);
      const updatedHandlers = {
          ...selectedShape.collisionHandlers,
@@ -92,7 +92,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
   }
 
   const handleLinePropertyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming') return;
+    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming' || selectedShape.type === 'button') return;
     const { name, value } = e.target;
     const newLinha = {
       ...selectedShape.linha,
@@ -102,7 +102,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
   };
 
   const handleLineColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming') return;
+    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming' || selectedShape.type === 'button') return;
     const newColor = hexToRgba(e.target.value);
     const newLinha = {
       ...selectedShape.linha,
@@ -139,11 +139,11 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
     onUpdateShape(selectedShape.id, { linhas: newLinhas });
   };
 
-  const targetShape = selectedShape?.type === 'slider' && selectedShape.targetId 
+  const targetShape = (selectedShape?.type === 'slider' || selectedShape?.type === 'button') && selectedShape.targetId 
         ? shapes.find(s => s.id === selectedShape.targetId) 
         : null;
 
-  const sliderTargetProperties = getTargetProperties(targetShape);
+  const targetProperties = getTargetProperties(targetShape);
 
 
   return (
@@ -197,7 +197,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                           className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                           <option value="">Select...</option>
-                          {sliderTargetProperties.map(prop => (
+                          {targetProperties.map(prop => (
                               <option key={prop} value={prop}>{prop}</option>
                           ))}
                       </select>
@@ -244,6 +244,44 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                   </div>
                   
                   <PropertyInput label="Window" name="movingAverageWindow" value={selectedShape.movingAverageWindow} onChange={handleInputChange} type="number" />
+              </>
+            )}
+
+            {selectedShape.type === 'button' && (
+              <>
+                  <div className="flex items-center">
+                      <label className="w-24 text-sm text-gray-400 capitalize">Target</label>
+                      <select
+                          name="targetId"
+                          value={selectedShape.targetId}
+                          onChange={handleInputChange}
+                          className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                          <option value="">None</option>
+                          {shapes.filter(s => s.id !== selectedShape.id).map(s => (
+                              <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                      </select>
+                  </div>
+
+                  <div className="flex items-center">
+                      <label className="w-24 text-sm text-gray-400 capitalize">Property</label>
+                      <select
+                          name="targetProperty"
+                          value={selectedShape.targetProperty}
+                          onChange={handleInputChange}
+                          disabled={!selectedShape.targetId}
+                          className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          <option value="">Select...</option>
+                          {targetProperties.map(prop => (
+                              <option key={prop} value={prop}>{prop}</option>
+                          ))}
+                      </select>
+                  </div>
+
+                  <PropertyInput label="Value On" name="valueOn" value={selectedShape.valueOn} onChange={handleInputChange} type="text" />
+                  <PropertyInput label="Value Off" name="valueOff" value={selectedShape.valueOff} onChange={handleInputChange} type="text" />
               </>
             )}
 
