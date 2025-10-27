@@ -435,6 +435,27 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                                             <option>Digital</option>
                                         </select>
                                     </div>
+                                     {mapping.mode === 'Analog' && (
+                                        <div className="flex items-center">
+                                            <label className="w-24 text-sm text-gray-400">ADC Bits</label>
+                                            <select
+                                                value={mapping.adcBits}
+                                                onChange={e => {
+                                                    const bits = parseInt(e.target.value, 10);
+                                                    const max = Math.pow(2, bits) - 1;
+                                                    handleMappingChange('inputs', index, { adcBits: bits, adcMax: max });
+                                                }}
+                                                className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm"
+                                            >
+                                                <option value="10">10-bit (1023)</option>
+                                                <option value="12">12-bit (4095)</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                     <div className="flex space-x-2">
+                                        <input type="number" value={mapping.min} onChange={e => handleMappingChange('inputs', index, { min: parseInt(e.target.value) })} placeholder="Map From Min" className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm" />
+                                        <input type="number" value={mapping.max} onChange={e => handleMappingChange('inputs', index, { max: parseInt(e.target.value) })} placeholder="Map To Max" className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm" />
+                                    </div>
                                     <select value={mapping.targetId} onChange={e => handleMappingChange('inputs', index, { targetId: e.target.value })} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm">
                                         <option value="">Select Target...</option>
                                         {shapes.filter(s => s.id !== selectedShape.id).map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
