@@ -5,6 +5,7 @@ interface PropertiesPanelProps {
   selectedShape: Shape | null;
   shapes: Shape[];
   onUpdateShape: (shapeId: string, updatedProperties: Partial<Shape>) => void;
+  onDeleteShape: (shapeId: string) => void;
 }
 
 const PropertyInput: React.FC<{ label: string; name: string; value: string | number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; }> = 
@@ -38,7 +39,7 @@ const hexToRgba = (hex: string, alpha = 1): string => {
 };
 
 
-const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes, onUpdateShape }) => {
+const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes, onUpdateShape, onDeleteShape }) => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (!selectedShape) return;
@@ -55,7 +56,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
         finalValue = (e.target as HTMLInputElement).checked;
     }
 
-    onUpdateShape(selectedShape.id, { [name]: finalValue } as Partial<Shape>);
+    if (name === 'targetId') {
+      onUpdateShape(selectedShape.id, { 
+          targetId: value,
+          targetProperty: '' 
+      });
+    } else {
+      onUpdateShape(selectedShape.id, { [name]: finalValue } as Partial<Shape>);
+    }
   };
 
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,106 +79,188 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
      onUpdateShape(selectedShape.id, { collisionHandlers: updatedHandlers });
   }
 
+  const handleLinePropertyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedShape || selectedShape.type === 'slider') return;
+    const { name, value } = e.target;
+    const newLinha = {
+      ...selectedShape.linha,
+      [name]: parseFloat(value) || 0,
+    };
+    onUpdateShape(selectedShape.id, { linha: newLinha });
+  };
+
+  const handleLineColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!selectedShape || selectedShape.type === 'slider') return;
+    const newColor = hexToRgba(e.target.value);
+    const newLinha = {
+      ...selectedShape.linha,
+      cor: newColor,
+    };
+    onUpdateShape(selectedShape.id, { linha: newLinha });
+  };
+
+  const targetShape = selectedShape?.type === 'slider' && selectedShape.targetId 
+        ? shapes.find(s => s.id === selectedShape.targetId) 
+        : null;
+
+  let targetProperties: string[] = [];
+  if (targetShape) {
+      const numericKeys: string[] = [];
+      for (const key in targetShape) {
+          if (typeof (targetShape as any)[key] === 'number') {
+              numericKeys.push(key);
+          }
+      }
+      const blacklistedKeys = ['view', 'movingAverageWindow'];
+      targetProperties = numericKeys.filter(key => !blacklistedKeys.includes(key)).sort();
+  }
+
+
   return (
     <aside className="w-64 bg-gray-900 p-4 border-l border-gray-700 space-y-4 overflow-y-auto">
       <h2 className="text-lg font-semibold text-white border-b border-gray-700 pb-2">Properties</h2>
       {selectedShape ? (
-        <div className="space-y-3">
-          <PropertyInput label="Name" name="nome" value={selectedShape.nome} onChange={handleInputChange} />
-          <PropertyInput label="X" name="x" value={Math.round(selectedShape.x)} onChange={handleInputChange} type="number" />
-          <PropertyInput label="Y" name="y" value={Math.round(selectedShape.y)} onChange={handleInputChange} type="number" />
+        <>
+          <div className="space-y-3">
+            <PropertyInput label="Name" name="nome" value={selectedShape.nome} onChange={handleInputChange} />
+            <PropertyInput label="X" name="x" value={Math.round(selectedShape.x)} onChange={handleInputChange} type="number" />
+            <PropertyInput label="Y" name="y" value={Math.round(selectedShape.y)} onChange={handleInputChange} type="number" />
 
-          {selectedShape.type === 'circulo' && (
-             <PropertyInput label="Diameter" name="diametro" value={Math.round((selectedShape as Circle).diametro)} onChange={handleInputChange} type="number" />
-          )}
+            {selectedShape.type === 'circulo' && (
+               <PropertyInput label="Diameter" name="diametro" value={Math.round((selectedShape as Circle).diametro)} onChange={handleInputChange} type="number" />
+            )}
 
-          {selectedShape.type === 'retangulo' && (
-            <>
-              <PropertyInput label="Width" name="largura" value={Math.round((selectedShape as Rectangle).largura)} onChange={handleInputChange} type="number" />
-              <PropertyInput label="Height" name="altura" value={Math.round((selectedShape as Rectangle).altura)} onChange={handleInputChange} type="number" />
-              <PropertyInput label="Rotation" name="rotation" value={(selectedShape as Rectangle).rotation} onChange={handleInputChange} type="number" />
-            </>
-          )}
+            {selectedShape.type === 'retangulo' && (
+              <>
+                <PropertyInput label="Width" name="largura" value={Math.round((selectedShape as Rectangle).largura)} onChange={handleInputChange} type="number" />
+                <PropertyInput label="Height" name="altura" value={Math.round((selectedShape as Rectangle).altura)} onChange={handleInputChange} type="number" />
+                <PropertyInput label="Rotation" name="rotation" value={(selectedShape as Rectangle).rotation} onChange={handleInputChange} type="number" />
+              </>
+            )}
 
-          {selectedShape.type === 'slider' && (
-            <>
-                <PropertyInput label="Value" name="value" value={Math.round(selectedShape.value)} onChange={handleInputChange} type="number" />
-                
+            {selectedShape.type === 'slider' && (
+              <>
+                  <PropertyInput label="Value" name="value" value={Math.round(selectedShape.value)} onChange={handleInputChange} type="number" />
+                  
+                  <div className="flex items-center">
+                      <label className="w-20 text-sm text-gray-400 capitalize">Target</label>
+                      <select
+                          name="targetId"
+                          value={selectedShape.targetId}
+                          onChange={handleInputChange}
+                          className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                          <option value="">None</option>
+                          {shapes.filter(s => s.id !== selectedShape.id).map(s => (
+                              <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                      </select>
+                  </div>
+
+                  <div className="flex items-center">
+                      <label className="w-20 text-sm text-gray-400 capitalize">Property</label>
+                      <select
+                          name="targetProperty"
+                          value={selectedShape.targetProperty}
+                          onChange={handleInputChange}
+                          disabled={!selectedShape.targetId}
+                          className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                          <option value="">Select...</option>
+                          {targetProperties.map(prop => (
+                              <option key={prop} value={prop}>{prop}</option>
+                          ))}
+                      </select>
+                  </div>
+                  
+                  <div className="flex items-center">
+                      <label className="w-20 text-sm text-gray-400 capitalize">Inherit From</label>
+                      <select
+                          name="inheritedSliderId"
+                          value={selectedShape.inheritedSliderId || ''}
+                          onChange={handleInputChange}
+                          className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                          <option value="">None</option>
+                          {shapes.filter(s => s.id !== selectedShape.id && s.type === 'slider').map(s => (
+                              <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                      </select>
+                  </div>
+
+                  <PropertyInput label="Min" name="min" value={selectedShape.min} onChange={handleInputChange} type="number" />
+                  <PropertyInput label="Max" name="max" value={selectedShape.max} onChange={handleInputChange} type="number" />
+                  
+                  <div className="flex items-center">
+                      <label className="w-20 text-sm text-gray-400">Show Label</label>
+                      <input 
+                          type="checkbox"
+                          name="showLabel"
+                          checked={selectedShape.showLabel}
+                          onChange={(e) => onUpdateShape(selectedShape.id, { showLabel: e.target.checked })}
+                          className="w-5 h-5 bg-gray-700 text-indigo-500 rounded focus:ring-indigo-500"
+                      />
+                  </div>
+
+                  <div className="flex items-center">
+                      <label className="w-20 text-sm text-gray-400">Use Avg</label>
+                      <input 
+                          type="checkbox"
+                          name="useMovingAverage"
+                          checked={selectedShape.useMovingAverage}
+                          onChange={(e) => onUpdateShape(selectedShape.id, { useMovingAverage: e.target.checked })}
+                          className="w-5 h-5 bg-gray-700 text-indigo-500 rounded focus:ring-indigo-500"
+                      />
+                  </div>
+                  
+                  <PropertyInput label="Window" name="movingAverageWindow" value={selectedShape.movingAverageWindow} onChange={handleInputChange} type="number" />
+              </>
+            )}
+
+
+            {(selectedShape.type === 'circulo' || selectedShape.type === 'retangulo') && (
+              <>
                 <div className="flex items-center">
-                    <label className="w-20 text-sm text-gray-400 capitalize">Target</label>
-                    <select
-                        name="targetId"
-                        value={selectedShape.targetId}
-                        onChange={handleInputChange}
-                        className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option value="">None</option>
-                        {shapes.filter(s => s.id !== selectedShape.id).map(s => (
-                            <option key={s.id} value={s.id}>{s.nome}</option>
-                        ))}
-                    </select>
+                   <label className="w-20 text-sm text-gray-400 capitalize">Fill Color</label>
+                   <input
+                      type="color"
+                      value={rgbaToHex(selectedShape.collisionHandlers.onNoCollision.cor)}
+                      onChange={handleColorChange}
+                      className="w-full h-8 p-1 bg-gray-700 border-none rounded cursor-pointer"
+                   />
                 </div>
-
-                <PropertyInput label="Property" name="targetProperty" value={selectedShape.targetProperty} onChange={handleInputChange} />
-                
+                <PropertyInput
+                  label="Line Width"
+                  name="espessura"
+                  value={selectedShape.linha.espessura}
+                  onChange={handleLinePropertyChange}
+                  type="number"
+                />
                 <div className="flex items-center">
-                    <label className="w-20 text-sm text-gray-400 capitalize">Inherit From</label>
-                    <select
-                        name="inheritedSliderId"
-                        value={selectedShape.inheritedSliderId || ''}
-                        onChange={handleInputChange}
-                        className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                        <option value="">None</option>
-                        {shapes.filter(s => s.id !== selectedShape.id && s.type === 'slider').map(s => (
-                            <option key={s.id} value={s.id}>{s.nome}</option>
-                        ))}
-                    </select>
+                  <label className="w-20 text-sm text-gray-400 capitalize">Line Color</label>
+                  <input
+                    type="color"
+                    value={rgbaToHex(selectedShape.linha.cor)}
+                    onChange={handleLineColorChange}
+                    className="w-full h-8 p-1 bg-gray-700 border-none rounded cursor-pointer"
+                  />
                 </div>
+              </>
+            )}
 
-                <PropertyInput label="Min" name="min" value={selectedShape.min} onChange={handleInputChange} type="number" />
-                <PropertyInput label="Max" name="max" value={selectedShape.max} onChange={handleInputChange} type="number" />
-                
-                <div className="flex items-center">
-                    <label className="w-20 text-sm text-gray-400">Show Label</label>
-                    <input 
-                        type="checkbox"
-                        name="showLabel"
-                        checked={selectedShape.showLabel}
-                        onChange={(e) => onUpdateShape(selectedShape.id, { showLabel: e.target.checked })}
-                        className="w-5 h-5 bg-gray-700 text-indigo-500 rounded focus:ring-indigo-500"
-                    />
-                </div>
-
-                <div className="flex items-center">
-                    <label className="w-20 text-sm text-gray-400">Use Avg</label>
-                    <input 
-                        type="checkbox"
-                        name="useMovingAverage"
-                        checked={selectedShape.useMovingAverage}
-                        onChange={(e) => onUpdateShape(selectedShape.id, { useMovingAverage: e.target.checked })}
-                        className="w-5 h-5 bg-gray-700 text-indigo-500 rounded focus:ring-indigo-500"
-                    />
-                </div>
-                
-                <PropertyInput label="Window" name="movingAverageWindow" value={selectedShape.movingAverageWindow} onChange={handleInputChange} type="number" />
-            </>
-          )}
-
-
-          {(selectedShape.type === 'circulo' || selectedShape.type === 'retangulo') && (
-            <div className="flex items-center">
-               <label className="w-20 text-sm text-gray-400 capitalize">Color</label>
-               <input
-                  type="color"
-                  value={rgbaToHex(selectedShape.collisionHandlers.onNoCollision.cor)}
-                  onChange={handleColorChange}
-                  className="w-full h-8 p-1 bg-gray-700 border-none rounded cursor-pointer"
-               />
-            </div>
-          )}
-
-        </div>
+          </div>
+          <div className="pt-4 mt-4 border-t border-gray-700">
+             <button
+                onClick={() => onDeleteShape(selectedShape.id)}
+                className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200 flex items-center justify-center space-x-2"
+             >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Delete Shape</span>
+             </button>
+          </div>
+        </>
       ) : (
         <div className="text-center text-gray-500 pt-8">
           <p>No shape selected</p>

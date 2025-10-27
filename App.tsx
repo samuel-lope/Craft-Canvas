@@ -163,6 +163,33 @@ const App: React.FC = () => {
     });
 }, []);
 
+  const deleteShape = useCallback((shapeId: string) => {
+    setAppData(prevData => ({
+      ...prevData,
+      objects: prevData.objects.filter(shape => shape.id !== shapeId),
+    }));
+    setSelectedShapeId(null);
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedShapeId) {
+        const target = e.target as HTMLElement;
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName.toUpperCase())) {
+          return;
+        }
+        e.preventDefault();
+        deleteShape(selectedShapeId);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedShapeId, deleteShape]);
+
+
   const handleAddCircle = () => addShape('circulo');
   const handleAddRectangle = () => addShape('retangulo');
   const handleAddSlider = () => addShape('slider');
@@ -198,6 +225,7 @@ const App: React.FC = () => {
             selectedShape={selectedShape}
             shapes={appData.objects}
             onUpdateShape={updateShape}
+            onDeleteShape={deleteShape}
         />
       </div>
     </div>
