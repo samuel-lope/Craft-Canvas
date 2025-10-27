@@ -364,10 +364,9 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
                           onUpdateShape(id, { currentState: currentState === 0 ? 1 : 0 });
                       }}
                     >
-                        {/* FIX: Removed pointer-events-none from this group to make the icon clickable */}
-                        <g transform={`scale(${iconSize / 24}) translate(-12, -12)`}>
+                        <g transform={`scale(${iconSize / 960}) translate(-480, 480)`}>
                             <path
-                                d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42C17.99 7.86 19 9.81 19 12c0 3.87-3.13 7-7 7s-7-3.13-7-7c0-2.19 1.01-4.14 2.58-5.42L6.17 5.17C4.23 6.82 3 9.26 3 12c0 4.97 4.03 9 9 9s9-4.03 9-9c0-2.74-1.23-5.18-3.17-6.83z"
+                                d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-160q100 0 170-70t70-170q0-51-19-94.5T650-650l-57 57q22 22 34.5 51t12.5 62q0 66-47 113t-113 47q-66 0-113-47t-47-113q0-33 12.5-62t34.5-51l-57-57q-32 32-51 75.5T240-480q0 100 70 170t170 70Zm-40-240h80v-240h-80v240Z"
                                 fill={color}
                                 className="transition-colors"
                             />
