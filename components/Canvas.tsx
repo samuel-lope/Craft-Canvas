@@ -18,6 +18,8 @@ interface CanvasProps {
   onSelectShape: (id: string | null) => void;
   onUpdateShape: (id: string, props: Partial<Shape>) => void;
   executionState: Record<string, number>;
+  onConnectFirmata: (id: string) => void;
+  onDisconnectFirmata: (id: string) => void;
 }
 
 const HANDLE_SIZE = 8;
@@ -25,7 +27,7 @@ const SLIDER_WIDTH = 150;
 const SLIDER_HEIGHT = 20;
 
 
-const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape, onUpdateShape, executionState }) => {
+const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape, onUpdateShape, executionState, onConnectFirmata, onDisconnectFirmata }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [interaction, setInteraction] = useState<Interaction | null>(null);
 
@@ -473,6 +475,24 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
                 const titleBarHeight = 24;
                 const startX = shape.x - width / 2;
                 const startY = shape.y - height / 2;
+                const status = shape.connectionStatus || 'disconnected';
+
+                const statusInfo = {
+                    disconnected: { color: '#ef4444', text: 'Disconnected' },
+                    connecting: { color: '#f59e0b', text: 'Connecting...' },
+                    connected: { color: '#22c55e', text: 'Connected' },
+                    error: { color: '#ef4444', text: 'Error' },
+                };
+
+                const buttonInfo = {
+                    disconnected: { text: 'Connect', action: () => onConnectFirmata(shape.id), disabled: false, bg: '#4f46e5', hover: 'hover:fill-indigo-500' },
+                    connecting: { text: 'Connecting...', action: () => {}, disabled: true, bg: '#6b7280', hover: '' },
+                    connected: { text: 'Disconnect', action: () => onDisconnectFirmata(shape.id), disabled: false, bg: '#dc2626', hover: 'hover:fill-red-500' },
+                    error: { text: 'Retry Connect', action: () => onConnectFirmata(shape.id), disabled: false, bg: '#4f46e5', hover: 'hover:fill-indigo-500' },
+                };
+
+                const currentStatus = statusInfo[status];
+                const currentButton = buttonInfo[status];
 
                 return (
                     <g key={shape.id} onMouseDown={e => handleMouseDownOnShape(e, shape)} className="cursor-move">
@@ -509,21 +529,29 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
                         </text>
                         
                         <g transform={`translate(${startX + 15}, ${startY + titleBarHeight + 20})`}>
-                            <circle cx="0" cy="0" r="5" fill="#ef4444" />
-                            <text x="10" y="4" fill="#a0aec0" fontSize="12" className="select-none">Disconnected</text>
+                            <circle cx="0" cy="0" r="5" fill={currentStatus.color} />
+                            <text x="10" y="4" fill="#a0aec0" fontSize="12" className="select-none">{currentStatus.text}</text>
                         </g>
 
                         <text x={startX + 15} y={startY + titleBarHeight + 50} fill="#a0aec0" fontSize="12" className="select-none">Baud: 57600</text>
                         
-                        <g className="cursor-pointer" onMouseDown={e => e.stopPropagation()}>
+                        <g 
+                          className={currentButton.disabled ? 'cursor-not-allowed' : 'cursor-pointer'} 
+                          onMouseDown={e => {
+                              e.stopPropagation();
+                              if (!currentButton.disabled) {
+                                  currentButton.action();
+                              }
+                          }}
+                        >
                             <rect 
                                 x={startX + 15}
                                 y={startY + height - 45}
                                 width={width - 30}
                                 height={30}
                                 rx="4"
-                                fill="#4f46e5"
-                                className="hover:fill-indigo-500"
+                                fill={currentButton.bg}
+                                className={currentButton.hover}
                             />
                             <text
                                 x={shape.x}
@@ -535,7 +563,7 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
                                 fontWeight="bold"
                                 className="pointer-events-none select-none"
                             >
-                                Connect
+                                {currentButton.text}
                             </text>
                         </g>
                     </g>

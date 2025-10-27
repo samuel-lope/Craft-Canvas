@@ -1,3 +1,20 @@
+// Fix: Add manual type definitions for the Web Serial API as they are missing from the project's TypeScript configuration.
+// This resolves errors related to 'SerialPort' and 'navigator.serial'.
+interface SerialPort extends EventTarget {
+  open(options: { baudRate: number }): Promise<void>;
+  close(): Promise<void>;
+}
+
+interface Serial {
+  requestPort(options?: any): Promise<SerialPort>;
+}
+
+declare global {
+  interface Navigator {
+    serial: Serial;
+  }
+}
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Shape, Circle, Rectangle, AppData, Slider, Programming, ProgrammingLine, Button, Firmata } from './types';
 import Toolbar from './components/Toolbar';
@@ -15,6 +32,7 @@ const App: React.FC = () => {
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [executionState, setExecutionState] = useState<Record<string, number>>({});
   const triggerCooldowns = useRef<Record<string, boolean>>({});
+  const firmataConnections = useRef<Map<string, SerialPort>>(new Map());
 
 
   useEffect(() => {
@@ -126,6 +144,7 @@ const App: React.FC = () => {
       const firmata: Firmata = {
         ...baseProps,
         type: 'firmata',
+        connectionStatus: 'disconnected',
         mappings: {
           inputs: [],
           outputs: [],
@@ -314,6 +333,54 @@ const App: React.FC = () => {
     setExecutionState({});
   };
 
+  const handleConnectFirmata = useCallback(async (firmataId: string) => {
+    if (firmataConnections.current.has(firmataId)) {
+        console.warn('Already connected or connecting.');
+        return;
+    }
+
+    updateShape(firmataId, { connectionStatus: 'connecting' });
+
+    try {
+        if (!navigator.serial) {
+            alert('Web Serial API not supported in this browser.');
+            updateShape(firmataId, { connectionStatus: 'error' });
+            return;
+        }
+
+        const port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 57600 });
+        
+        firmataConnections.current.set(firmataId, port);
+        updateShape(firmataId, { connectionStatus: 'connected' });
+
+    } catch (error) {
+        console.error('Failed to connect to the serial port:', error);
+        updateShape(firmataId, { connectionStatus: 'error' });
+        setTimeout(() => {
+            const currentShape = appData.objects.find(s => s.id === firmataId);
+            if (currentShape?.type === 'firmata' && currentShape.connectionStatus === 'error') {
+                 updateShape(firmataId, { connectionStatus: 'disconnected' });
+            }
+        }, 3000);
+    }
+  }, [updateShape, appData.objects]);
+
+
+  const handleDisconnectFirmata = useCallback(async (firmataId: string) => {
+      const port = firmataConnections.current.get(firmataId);
+      if (port) {
+          try {
+              await port.close();
+          } catch (error) {
+              console.error('Error closing the port:', error);
+          } finally {
+              firmataConnections.current.delete(firmataId);
+              updateShape(firmataId, { connectionStatus: 'disconnected' });
+          }
+      }
+  }, [updateShape]);
+
   const selectedShape = appData.objects.find(shape => shape.id === selectedShapeId) || null;
 
   return (
@@ -336,6 +403,8 @@ const App: React.FC = () => {
             onSelectShape={setSelectedShapeId}
             onUpdateShape={updateShape}
             executionState={executionState}
+            onConnectFirmata={handleConnectFirmata}
+            onDisconnectFirmata={handleDisconnectFirmata}
           />
         </main>
         <PropertiesPanel

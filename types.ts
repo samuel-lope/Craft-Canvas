@@ -116,6 +116,7 @@ export interface Firmata {
   view: number;
   x: number;
   y: number;
+  connectionStatus?: 'disconnected' | 'connecting' | 'connected' | 'error';
   mappings: {
     inputs: InputMapping[];
     outputs: OutputMapping[];
