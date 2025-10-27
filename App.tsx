@@ -298,11 +298,12 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // FIX: The type for setInterval's return value in a browser environment is `number`, not `NodeJS.Timeout`.
     const timers: number[] = [];
     appData.objects.forEach(shape => {
       if (shape.type === 'programming' && shape.executionMode === 'auto' && shape.linhas.length > 0) {
-        const timer = setInterval(() => {
+        // FIX: Use window.setInterval to explicitly use the browser's implementation,
+        // which returns a `number`, resolving the type conflict with NodeJS.Timeout.
+        const timer = window.setInterval(() => {
           executeProgrammingStep(shape.id, (prog) => prog.linhas);
         }, shape.autoInterval);
         timers.push(timer);
@@ -310,7 +311,8 @@ const App: React.FC = () => {
     });
 
     return () => {
-      timers.forEach(clearInterval);
+      // FIX: Use window.clearInterval to match the `number` type expected by the browser.
+      timers.forEach(window.clearInterval);
     };
   }, [appData.objects]);
 
