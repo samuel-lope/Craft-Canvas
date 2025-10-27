@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, MouseEvent } from 'react';
-import { Shape, Circle, Rectangle, Slider } from '../types';
+import { Shape, Circle, Rectangle, Slider, Programming } from '../types';
 
 type Interaction = {
   type: 'move' | 'resize' | 'slide';
@@ -17,6 +17,7 @@ interface CanvasProps {
   selectedShapeId: string | null;
   onSelectShape: (id: string | null) => void;
   onUpdateShape: (id: string, props: Partial<Shape>) => void;
+  executionState: Record<string, number>;
 }
 
 const HANDLE_SIZE = 8;
@@ -24,7 +25,7 @@ const SLIDER_WIDTH = 150;
 const SLIDER_HEIGHT = 20;
 
 
-const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape, onUpdateShape }) => {
+const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape, onUpdateShape, executionState }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const [interaction, setInteraction] = useState<Interaction | null>(null);
 
@@ -85,28 +86,30 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
             const dy = y - initialShape.y;
             const newRadius = Math.sqrt(dx * dx + dy * dy);
             onUpdateShape(initialShape.id, { diametro: newRadius * 2 });
-       } else if (initialShape.type === 'retangulo') {
+       } else if (initialShape.type === 'retangulo' || initialShape.type === 'programming') {
             const { offsetX: startMouseX, offsetY: startMouseY } = interaction;
-            let { x: newX, y: newY, largura: newW, altura: newH } = initialShape as Rectangle;
-            
+            let { x: newX, y: newY, width: newW, height: newH } = { ...initialShape, width: (initialShape as any).largura, height: (initialShape as any).altura } as any;
+
             const dx = x - startMouseX;
             const dy = y - startMouseY;
 
             if (handle.includes('right')) {
-                newW = initialShape.largura + dx;
+                newW = (initialShape as any).largura !== undefined ? (initialShape as Rectangle).largura + dx : (initialShape as Programming).width + dx;
             }
             if (handle.includes('left')) {
-                newW = initialShape.largura - dx;
+                newW = (initialShape as any).largura !== undefined ? (initialShape as Rectangle).largura - dx : (initialShape as Programming).width - dx;
             }
             if (handle.includes('bottom')) {
-                newH = initialShape.altura + dy;
+                newH = (initialShape as any).altura !== undefined ? (initialShape as Rectangle).altura + dy : (initialShape as Programming).height + dy;
             }
             if (handle.includes('top')) {
-                newH = initialShape.altura - dy;
+                newH = (initialShape as any).altura !== undefined ? (initialShape as Rectangle).altura - dy : (initialShape as Programming).height - dy;
             }
-
-            if(newW > HANDLE_SIZE && newH > HANDLE_SIZE) {
-                 onUpdateShape(initialShape.id, { largura: newW, altura: newH });
+            
+            const updatedProps = initialShape.type === 'retangulo' ? { largura: newW, altura: newH } : { width: newW, height: newH };
+            
+            if(newW > HANDLE_SIZE * 2 && newH > HANDLE_SIZE * 2) {
+                 onUpdateShape(initialShape.id, updatedProps);
             }
        }
     } else if (type === 'slide') {
@@ -170,8 +173,11 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
         return handles.map(h => 
             <circle key={h.id} cx={h.cx} cy={h.cy} r={HANDLE_SIZE/2} fill="white" stroke="#3b82f6" style={{ cursor: h.cursor }} onMouseDown={e => handleMouseDownOnHandle(e, shape, h.id)} />
         );
-      } else if (shape.type === 'retangulo') {
-        const { x, y, largura, altura } = shape;
+      } else if (shape.type === 'retangulo' || shape.type === 'programming') {
+        const { x, y } = shape;
+        const largura = (shape as any).largura || (shape as any).width;
+        const altura = (shape as any).altura || (shape as any).height;
+
         const halfW = largura / 2;
         const halfH = altura / 2;
         const handles = [
@@ -288,6 +294,90 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
                 </g>
             )
           }
+           if (shape.type === 'programming') {
+                const titleBarHeight = 24;
+                const padding = 10;
+                const lineHeight = 18;
+                const startX = shape.x - shape.width / 2;
+                const startY = shape.y - shape.height / 2;
+                const currentLineOrdem = executionState[shape.id] || 0;
+
+                return (
+                    <g key={shape.id} onMouseDown={e => handleMouseDownOnShape(e, shape)} className="cursor-move">
+                        <rect
+                            x={startX}
+                            y={startY}
+                            width={shape.width}
+                            height={shape.height}
+                            fill="#2d3748"
+                            stroke={isSelected ? '#3b82f6' : '#4a5568'}
+                            strokeWidth={isSelected ? 2 : 1}
+                            rx="4"
+                        />
+                        <rect
+                            x={startX}
+                            y={startY}
+                            width={shape.width}
+                            height={titleBarHeight}
+                            fill={isSelected ? '#4f46e5' : '#4a5568'}
+                            rx="4"
+                            ry="4"
+                        />
+                         <text
+                            x={shape.x}
+                            y={startY + titleBarHeight / 2}
+                            textAnchor="middle"
+                            dominantBaseline="middle"
+                            fill="white"
+                            fontSize="12"
+                            fontWeight="bold"
+                            className="pointer-events-none select-none"
+                         >
+                            {shape.nome}
+                        </text>
+                        <g clipPath={`url(#clip-${shape.id})`}>
+                            {shape.linhas.sort((a,b) => a.ordem - b.ordem).map((line, index) => {
+                                const target = shapes.find(s => s.id === line.targetObjectId);
+                                const isExecuting = line.ordem === currentLineOrdem;
+                                return (
+                                    <g key={index}>
+                                        {isExecuting && (
+                                            <rect
+                                                x={startX + 2}
+                                                y={startY + titleBarHeight + padding + (index * lineHeight) - lineHeight / 1.5}
+                                                width={shape.width - 4}
+                                                height={lineHeight}
+                                                fill="rgba(59, 130, 246, 0.3)"
+                                                rx="2"
+                                            />
+                                        )}
+                                        <text
+                                            x={startX + padding}
+                                            y={startY + titleBarHeight + padding + (index * lineHeight)}
+                                            fill={isExecuting ? 'white' : '#a0aec0'}
+                                            fontSize="12"
+                                            className="pointer-events-none select-none"
+                                            fontFamily="monospace"
+                                        >
+                                            {`> ${target?.nome || '?'}.${line.property} = ${line.value}`}
+                                        </text>
+                                    </g>
+                                );
+                            })}
+                        </g>
+                        <defs>
+                            <clipPath id={`clip-${shape.id}`}>
+                                <rect 
+                                    x={startX} 
+                                    y={startY + titleBarHeight} 
+                                    width={shape.width} 
+                                    height={shape.height - titleBarHeight} 
+                                />
+                            </clipPath>
+                        </defs>
+                    </g>
+                );
+            }
           return null;
         })}
 

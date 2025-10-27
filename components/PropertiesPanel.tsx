@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shape, Circle, Rectangle, Slider } from '../types';
+import { Shape, Circle, Rectangle, Slider, Programming, ProgrammingLine } from '../types';
 
 interface PropertiesPanelProps {
   selectedShape: Shape | null;
@@ -11,7 +11,7 @@ interface PropertiesPanelProps {
 const PropertyInput: React.FC<{ label: string; name: string; value: string | number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; }> = 
 ({ label, name, value, onChange, type = 'text' }) => (
     <div className="flex items-center">
-        <label className="w-20 text-sm text-gray-400 capitalize">{label}</label>
+        <label className="w-24 text-sm text-gray-400 capitalize">{label}</label>
         <input 
             type={type}
             name={name}
@@ -38,6 +38,18 @@ const hexToRgba = (hex: string, alpha = 1): string => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+const getTargetProperties = (targetShape: Shape | null | undefined): string[] => {
+    if (!targetShape) return [];
+    const numericKeys: string[] = [];
+    for (const key in targetShape) {
+        if (typeof (targetShape as any)[key] === 'number') {
+            numericKeys.push(key);
+        }
+    }
+    const blacklistedKeys = ['view', 'movingAverageWindow'];
+    return numericKeys.filter(key => !blacklistedKeys.includes(key)).sort();
+}
+
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes, onUpdateShape, onDeleteShape }) => {
 
@@ -49,7 +61,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
     if (type === 'number') {
         finalValue = parseFloat(value) || 0;
     }
-    if (name === 'inheritedSliderId' && value === '') {
+    if ((name === 'inheritedSliderId' || name === 'manualTriggerId') && value === '') {
       finalValue = null;
     }
     if (type === 'checkbox') {
@@ -60,14 +72,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
       onUpdateShape(selectedShape.id, { 
           targetId: value,
           targetProperty: '' 
-      });
+      } as Partial<Shape>);
     } else {
       onUpdateShape(selectedShape.id, { [name]: finalValue } as Partial<Shape>);
     }
   };
 
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider') return;
+    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming') return;
      const newColor = hexToRgba(e.target.value);
      const updatedHandlers = {
          ...selectedShape.collisionHandlers,
@@ -80,7 +92,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
   }
 
   const handleLinePropertyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider') return;
+    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming') return;
     const { name, value } = e.target;
     const newLinha = {
       ...selectedShape.linha,
@@ -90,7 +102,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
   };
 
   const handleLineColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider') return;
+    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming') return;
     const newColor = hexToRgba(e.target.value);
     const newLinha = {
       ...selectedShape.linha,
@@ -99,25 +111,43 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
     onUpdateShape(selectedShape.id, { linha: newLinha });
   };
 
+  const handleProgrammingLineChange = (index: number, updatedLine: Partial<ProgrammingLine>) => {
+    if (selectedShape?.type !== 'programming') return;
+    const newLinhas = [...selectedShape.linhas];
+    newLinhas[index] = { ...newLinhas[index], ...updatedLine };
+    if ('targetObjectId' in updatedLine) {
+      newLinhas[index].property = '';
+    }
+    onUpdateShape(selectedShape.id, { linhas: newLinhas });
+  };
+
+  const addProgrammingLine = () => {
+    if (selectedShape?.type !== 'programming') return;
+    const newLinhas = [...selectedShape.linhas, {
+      targetObjectId: '',
+      property: '',
+      value: 0,
+      ordem: selectedShape.linhas.length + 1,
+    }];
+    onUpdateShape(selectedShape.id, { linhas: newLinhas });
+  };
+  
+  const deleteProgrammingLine = (index: number) => {
+    if (selectedShape?.type !== 'programming') return;
+    const newLinhas = selectedShape.linhas.filter((_, i) => i !== index)
+      .map((line, newIndex) => ({ ...line, ordem: newIndex + 1 }));
+    onUpdateShape(selectedShape.id, { linhas: newLinhas });
+  };
+
   const targetShape = selectedShape?.type === 'slider' && selectedShape.targetId 
         ? shapes.find(s => s.id === selectedShape.targetId) 
         : null;
 
-  let targetProperties: string[] = [];
-  if (targetShape) {
-      const numericKeys: string[] = [];
-      for (const key in targetShape) {
-          if (typeof (targetShape as any)[key] === 'number') {
-              numericKeys.push(key);
-          }
-      }
-      const blacklistedKeys = ['view', 'movingAverageWindow'];
-      targetProperties = numericKeys.filter(key => !blacklistedKeys.includes(key)).sort();
-  }
+  const sliderTargetProperties = getTargetProperties(targetShape);
 
 
   return (
-    <aside className="w-64 bg-gray-900 p-4 border-l border-gray-700 space-y-4 overflow-y-auto">
+    <aside className="w-72 bg-gray-900 p-4 border-l border-gray-700 space-y-4 overflow-y-auto">
       <h2 className="text-lg font-semibold text-white border-b border-gray-700 pb-2">Properties</h2>
       {selectedShape ? (
         <>
@@ -143,7 +173,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                   <PropertyInput label="Value" name="value" value={Math.round(selectedShape.value)} onChange={handleInputChange} type="number" />
                   
                   <div className="flex items-center">
-                      <label className="w-20 text-sm text-gray-400 capitalize">Target</label>
+                      <label className="w-24 text-sm text-gray-400 capitalize">Target</label>
                       <select
                           name="targetId"
                           value={selectedShape.targetId}
@@ -158,7 +188,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                   </div>
 
                   <div className="flex items-center">
-                      <label className="w-20 text-sm text-gray-400 capitalize">Property</label>
+                      <label className="w-24 text-sm text-gray-400 capitalize">Property</label>
                       <select
                           name="targetProperty"
                           value={selectedShape.targetProperty}
@@ -167,14 +197,14 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                           className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                           <option value="">Select...</option>
-                          {targetProperties.map(prop => (
+                          {sliderTargetProperties.map(prop => (
                               <option key={prop} value={prop}>{prop}</option>
                           ))}
                       </select>
                   </div>
                   
                   <div className="flex items-center">
-                      <label className="w-20 text-sm text-gray-400 capitalize">Inherit From</label>
+                      <label className="w-24 text-sm text-gray-400 capitalize">Inherit From</label>
                       <select
                           name="inheritedSliderId"
                           value={selectedShape.inheritedSliderId || ''}
@@ -192,7 +222,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                   <PropertyInput label="Max" name="max" value={selectedShape.max} onChange={handleInputChange} type="number" />
                   
                   <div className="flex items-center">
-                      <label className="w-20 text-sm text-gray-400">Show Label</label>
+                      <label className="w-24 text-sm text-gray-400">Show Label</label>
                       <input 
                           type="checkbox"
                           name="showLabel"
@@ -203,7 +233,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                   </div>
 
                   <div className="flex items-center">
-                      <label className="w-20 text-sm text-gray-400">Use Avg</label>
+                      <label className="w-24 text-sm text-gray-400">Use Avg</label>
                       <input 
                           type="checkbox"
                           name="useMovingAverage"
@@ -217,11 +247,68 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
               </>
             )}
 
+            {selectedShape.type === 'programming' && (
+                <>
+                    <PropertyInput label="Width" name="width" value={Math.round(selectedShape.width)} onChange={handleInputChange} type="number" />
+                    <PropertyInput label="Height" name="height" value={Math.round(selectedShape.height)} onChange={handleInputChange} type="number" />
+
+                    <div className="flex items-center">
+                        <label className="w-24 text-sm text-gray-400 capitalize">Exec Mode</label>
+                        <select name="executionMode" value={selectedShape.executionMode} onChange={handleInputChange} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="auto">Auto</option>
+                            <option value="manual">Manual</option>
+                        </select>
+                    </div>
+
+                    {selectedShape.executionMode === 'auto' && (
+                        <PropertyInput label="Interval (ms)" name="autoInterval" value={selectedShape.autoInterval} onChange={handleInputChange} type="number" />
+                    )}
+
+                    {selectedShape.executionMode === 'manual' && (
+                        <div className="flex items-center">
+                            <label className="w-24 text-sm text-gray-400 capitalize">Trigger</label>
+                            <select name="manualTriggerId" value={selectedShape.manualTriggerId || ''} onChange={handleInputChange} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="">None</option>
+                                {shapes.filter(s => s.id !== selectedShape.id).map(s => (
+                                    <option key={s.id} value={s.id}>{s.nome}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="space-y-2 pt-2 border-t border-gray-700">
+                        <h3 className="text-md font-semibold text-white">Lines</h3>
+                        {selectedShape.linhas.map((line, index) => {
+                             const targetShape = shapes.find(s => s.id === line.targetObjectId);
+                             const targetProperties = getTargetProperties(targetShape);
+                             return (
+                                <div key={index} className="p-2 bg-gray-800 rounded space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-bold text-gray-400">Line {line.ordem}</span>
+                                        <button onClick={() => deleteProgrammingLine(index)} className="text-red-500 hover:text-red-400 text-xs">Delete</button>
+                                    </div>
+                                    <select value={line.targetObjectId} onChange={(e) => handleProgrammingLineChange(index, { targetObjectId: e.target.value })} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm">
+                                        <option value="">Select Target...</option>
+                                        {shapes.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                                    </select>
+                                    <select value={line.property} onChange={(e) => handleProgrammingLineChange(index, { property: e.target.value })} disabled={!line.targetObjectId} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm disabled:opacity-50">
+                                        <option value="">Select Property...</option>
+                                        {targetProperties.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                    <input type="number" value={line.value} onChange={(e) => handleProgrammingLineChange(index, { value: parseFloat(e.target.value) || 0 })} className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm" />
+                                </div>
+                            );
+                        })}
+                        <button onClick={addProgrammingLine} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-1 px-2 rounded">Add Line</button>
+                    </div>
+                </>
+            )}
+
 
             {(selectedShape.type === 'circulo' || selectedShape.type === 'retangulo') && (
               <>
                 <div className="flex items-center">
-                   <label className="w-20 text-sm text-gray-400 capitalize">Fill Color</label>
+                   <label className="w-24 text-sm text-gray-400 capitalize">Fill Color</label>
                    <input
                       type="color"
                       value={rgbaToHex(selectedShape.collisionHandlers.onNoCollision.cor)}
@@ -237,7 +324,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                   type="number"
                 />
                 <div className="flex items-center">
-                  <label className="w-20 text-sm text-gray-400 capitalize">Line Color</label>
+                  <label className="w-24 text-sm text-gray-400 capitalize">Line Color</label>
                   <input
                     type="color"
                     value={rgbaToHex(selectedShape.linha.cor)}

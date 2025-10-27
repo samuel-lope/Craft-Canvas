@@ -4,6 +4,7 @@ interface ToolbarProps {
   onAddCircle: () => void;
   onAddRectangle: () => void;
   onAddSlider: () => void;
+  onAddProgramming: () => void;
   onClear: () => void;
 }
 
@@ -19,12 +20,12 @@ const ToolbarButton: React.FC<{ onClick: () => void; children: React.ReactNode; 
 );
 
 
-const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSlider, onClear }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSlider, onAddProgramming, onClear }) => {
   return (
     <aside className="w-24 bg-gray-900 p-3 flex flex-col items-center space-y-4 border-r border-gray-700">
         <div className="w-full space-y-2">
             <ToolbarButton onClick={onAddCircle} title="Circle">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </ToolbarButton>
@@ -39,6 +40,12 @@ const Toolbar: React.FC<ToolbarProps> = ({ onAddCircle, onAddRectangle, onAddSli
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 12h16" />
                     <rect x="10" y="9" width="4" height="6" rx="1" stroke="currentColor" />
+                </svg>
+            </ToolbarButton>
+            
+            <ToolbarButton onClick={onAddProgramming} title="Code">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                 </svg>
             </ToolbarButton>
         </div>

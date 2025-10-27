@@ -55,8 +55,30 @@ export interface Slider {
   showLabel: boolean;
 }
 
+export interface ProgrammingLine {
+    targetObjectId: string;
+    property: string;
+    value: any;
+    ordem: number;
+}
 
-export type Shape = Circle | Rectangle | Slider;
+export interface Programming {
+    id: string;
+    type: 'programming';
+    nome: string;
+    view: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    executionMode: 'auto' | 'manual';
+    autoInterval: number;
+    manualTriggerId: string | null;
+    linhas: ProgrammingLine[];
+}
+
+
+export type Shape = Circle | Rectangle | Slider | Programming;
 
 export interface AppData {
   theme: {

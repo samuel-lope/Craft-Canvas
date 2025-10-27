@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Shape, Circle, Rectangle, AppData, Slider } from './types';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Shape, Circle, Rectangle, AppData, Slider, Programming, ProgrammingLine } from './types';
 import Toolbar from './components/Toolbar';
 import Canvas from './components/Canvas';
 import { Header } from './components/Header';
@@ -13,6 +13,9 @@ const App: React.FC = () => {
     objects: [],
   });
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
+  const [executionState, setExecutionState] = useState<Record<string, number>>({});
+  const triggerCooldowns = useRef<Record<string, boolean>>({});
+
 
   useEffect(() => {
     try {
@@ -34,10 +37,10 @@ const App: React.FC = () => {
     }
   }, [appData]);
 
-  const addShape = (shapeType: 'circulo' | 'retangulo' | 'slider') => {
+  const addShape = (shapeType: 'circulo' | 'retangulo' | 'slider' | 'programming') => {
     const baseProps = {
       id: `${shapeType}_${Date.now()}`,
-      nome: shapeType === 'circulo' ? 'Novo Círculo' : shapeType === 'retangulo' ? 'Novo Retângulo' : 'Novo Slider',
+      nome: shapeType === 'circulo' ? 'Novo Círculo' : shapeType === 'retangulo' ? 'Novo Retângulo' : shapeType === 'slider' ? 'Novo Slider' : 'Código',
       view: appData.objects.length,
       x: 250,
       y: 150,
@@ -81,7 +84,7 @@ const App: React.FC = () => {
         rotation: 0,
       };
       newShape = rectangle;
-    } else { // slider
+    } else if (shapeType === 'slider') {
       const slider: Slider = {
           ...baseProps,
           type: 'slider',
@@ -96,6 +99,18 @@ const App: React.FC = () => {
           showLabel: true,
       };
       newShape = slider;
+    } else { // programming
+      const programming: Programming = {
+        ...baseProps,
+        type: 'programming',
+        width: 250,
+        height: 200,
+        executionMode: 'auto',
+        autoInterval: 1000,
+        manualTriggerId: null,
+        linhas: [],
+      };
+      newShape = programming;
     }
     
     setAppData(prevData => ({
@@ -115,7 +130,6 @@ const App: React.FC = () => {
         while (updateQueue.length > 0) {
             const { id, props } = updateQueue.shift()!;
 
-            // Prevent infinite loops from circular dependencies
             if (processedIds.has(id) && !('value' in props)) continue;
             
             const shapeIndex = objects.findIndex(s => s.id === id);
@@ -157,19 +171,82 @@ const App: React.FC = () => {
                     }
                 });
             }
+
+            // 3. Trigger manual programming blocks
+             objects.forEach(progCandidate => {
+                if (progCandidate.type === 'programming' && progCandidate.executionMode === 'manual' && progCandidate.manualTriggerId === updatedShape.id) {
+                    executeProgrammingStep(progCandidate.id, (prog) => prog.linhas);
+                }
+            });
         }
         
         return { ...prevData, objects };
     });
-}, []);
+  }, []);
+
+  const executeProgrammingStep = (progId: string, getLinhas: (prog: Programming) => ProgrammingLine[]) => {
+      if (triggerCooldowns.current[progId]) return;
+
+      triggerCooldowns.current[progId] = true;
+      setTimeout(() => {
+          delete triggerCooldowns.current[progId];
+      }, 100);
+
+      setExecutionState(prevState => {
+          const prog = appData.objects.find(o => o.id === progId) as Programming;
+          if (!prog) return prevState;
+          
+          const linhas = getLinhas(prog);
+          if (linhas.length === 0) return prevState;
+
+          const currentOrdem = prevState[progId] || 0;
+          const nextOrdem = (currentOrdem % linhas.length) + 1;
+          
+          const lineToExecute = linhas.find(l => l.ordem === nextOrdem);
+          
+          if (lineToExecute) {
+              const { targetObjectId, property, value } = lineToExecute;
+              if (targetObjectId && property) {
+                  // Use a timeout to de-couple the state update from this call
+                  setTimeout(() => updateShape(targetObjectId, { [property]: value }), 0);
+              }
+          }
+          return { ...prevState, [progId]: nextOrdem };
+      });
+  };
+
+  useEffect(() => {
+    // FIX: The type for setInterval's return value in a browser environment is `number`, not `NodeJS.Timeout`.
+    const timers: number[] = [];
+    appData.objects.forEach(shape => {
+      if (shape.type === 'programming' && shape.executionMode === 'auto' && shape.linhas.length > 0) {
+        const timer = setInterval(() => {
+          executeProgrammingStep(shape.id, (prog) => prog.linhas);
+        }, shape.autoInterval);
+        timers.push(timer);
+      }
+    });
+
+    return () => {
+      timers.forEach(clearInterval);
+    };
+  }, [appData.objects]);
+
 
   const deleteShape = useCallback((shapeId: string) => {
     setAppData(prevData => ({
       ...prevData,
       objects: prevData.objects.filter(shape => shape.id !== shapeId),
     }));
-    setSelectedShapeId(null);
-  }, []);
+    if (selectedShapeId === shapeId) {
+        setSelectedShapeId(null);
+    }
+    setExecutionState(prevState => {
+        const newState = { ...prevState };
+        delete newState[shapeId];
+        return newState;
+    });
+  }, [selectedShapeId]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -193,12 +270,14 @@ const App: React.FC = () => {
   const handleAddCircle = () => addShape('circulo');
   const handleAddRectangle = () => addShape('retangulo');
   const handleAddSlider = () => addShape('slider');
+  const handleAddProgramming = () => addShape('programming');
   const handleClearCanvas = () => {
     setAppData(prevData => ({
         ...prevData,
         objects: [],
     }));
     setSelectedShapeId(null);
+    setExecutionState({});
   };
 
   const selectedShape = appData.objects.find(shape => shape.id === selectedShapeId) || null;
@@ -211,6 +290,7 @@ const App: React.FC = () => {
           onAddCircle={handleAddCircle} 
           onAddRectangle={handleAddRectangle}
           onAddSlider={handleAddSlider}
+          onAddProgramming={handleAddProgramming}
           onClear={handleClearCanvas}
         />
         <main className="flex-grow p-4 md:p-6 bg-gray-900 overflow-auto">
@@ -219,6 +299,7 @@ const App: React.FC = () => {
             selectedShapeId={selectedShapeId}
             onSelectShape={setSelectedShapeId}
             onUpdateShape={updateShape}
+            executionState={executionState}
           />
         </main>
         <PropertiesPanel
