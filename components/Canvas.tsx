@@ -79,7 +79,7 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
     if (type === 'move') {
       onUpdateShape(initialShape.id, { x: x - offsetX, y: y - offsetY });
     } else if (type === 'resize') {
-       const { handle } = interaction;
+       const { handle, offsetX: startMouseX, offsetY: startMouseY } = interaction;
        
        if (initialShape.type === 'circulo') {
             const dx = x - initialShape.x;
@@ -87,30 +87,57 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
             const newRadius = Math.sqrt(dx * dx + dy * dy);
             onUpdateShape(initialShape.id, { diametro: newRadius * 2 });
        } else if (initialShape.type === 'retangulo' || initialShape.type === 'programming') {
-            const { offsetX: startMouseX, offsetY: startMouseY } = interaction;
-            let { x: newX, y: newY, width: newW, height: newH } = { ...initialShape, width: (initialShape as any).largura, height: (initialShape as any).altura } as any;
-
             const dx = x - startMouseX;
             const dy = y - startMouseY;
 
+            const initialW = initialShape.type === 'retangulo' ? initialShape.largura : initialShape.width;
+            const initialH = initialShape.type === 'retangulo' ? initialShape.altura : initialShape.height;
+
+            let newW = initialW;
+            let newH = initialH;
+            let newX = initialShape.x;
+            let newY = initialShape.y;
+
             if (handle.includes('right')) {
-                newW = (initialShape as any).largura !== undefined ? (initialShape as Rectangle).largura + dx : (initialShape as Programming).width + dx;
+                newW = initialW + dx;
             }
             if (handle.includes('left')) {
-                newW = (initialShape as any).largura !== undefined ? (initialShape as Rectangle).largura - dx : (initialShape as Programming).width - dx;
+                newW = initialW - dx;
             }
             if (handle.includes('bottom')) {
-                newH = (initialShape as any).altura !== undefined ? (initialShape as Rectangle).altura + dy : (initialShape as Programming).height + dy;
+                newH = initialH + dy;
             }
             if (handle.includes('top')) {
-                newH = (initialShape as any).altura !== undefined ? (initialShape as Rectangle).altura - dy : (initialShape as Programming).height - dy;
+                newH = initialH - dy;
+            }
+
+            // Minimum size constraint
+            if (newW < HANDLE_SIZE * 2) {
+                newW = HANDLE_SIZE * 2;
+            }
+            if (newH < HANDLE_SIZE * 2) {
+                newH = HANDLE_SIZE * 2;
             }
             
-            const updatedProps = initialShape.type === 'retangulo' ? { largura: newW, altura: newH } : { width: newW, height: newH };
-            
-            if(newW > HANDLE_SIZE * 2 && newH > HANDLE_SIZE * 2) {
-                 onUpdateShape(initialShape.id, updatedProps);
+            // Adjust center position based on the dimension change
+            if (handle.includes('right')) {
+                newX = initialShape.x + (newW - initialW) / 2;
             }
+            if (handle.includes('left')) {
+                newX = initialShape.x - (newW - initialW) / 2;
+            }
+            if (handle.includes('bottom')) {
+                newY = initialShape.y + (newH - initialH) / 2;
+            }
+            if (handle.includes('top')) {
+                newY = initialShape.y - (newH - initialH) / 2;
+            }
+
+            const updatedProps = initialShape.type === 'retangulo'
+                ? { largura: newW, altura: newH, x: newX, y: newY }
+                : { width: newW, height: newH, x: newX, y: newY };
+
+            onUpdateShape(initialShape.id, updatedProps);
        }
     } else if (type === 'slide') {
         const { shape, trackWidth, min, max } = interaction;
