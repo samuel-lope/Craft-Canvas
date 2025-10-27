@@ -1,5 +1,7 @@
 {
   "name": "Modular Build System",
   "description": "A visual modular construction interface where users can add and manipulate basic geometric shapes like circles and rectangles on a canvas. This serves as the foundation for a more complex modular design tool.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "serial"
+  ]
 }

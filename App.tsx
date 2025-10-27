@@ -177,7 +177,10 @@ const App: React.FC = () => {
 
             const oldShape = objects[shapeIndex];
             const updatedShape = { ...oldShape, ...props };
-            objects[shapeIndex] = updatedShape;
+            // FIX: Cast the updated shape to 'Shape' to resolve a complex type inference error.
+            // TypeScript struggles to correctly infer the type of `updatedShape` after spreading properties
+            // onto a discriminated union, so this assertion clarifies that the object is still a valid shape.
+            objects[shapeIndex] = updatedShape as Shape;
             processedIds.add(id);
 
             // 1. Propagate to target (for sliders)

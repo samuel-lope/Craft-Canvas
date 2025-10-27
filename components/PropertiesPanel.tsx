@@ -90,7 +90,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
   };
 
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming' || selectedShape.type === 'button') return;
+    // FIX: Correctly narrow the type of `selectedShape` to ensure it has the `collisionHandlers` property.
+    if (selectedShape?.type !== 'circulo' && selectedShape?.type !== 'retangulo') return;
      const newColor = hexToRgba(e.target.value);
      const updatedHandlers = {
          ...selectedShape.collisionHandlers,
@@ -103,7 +104,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
   }
 
   const handleLinePropertyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming' || selectedShape.type === 'button') return;
+    // FIX: Correctly narrow the type of `selectedShape` to ensure it has the `linha` property.
+    if (selectedShape?.type !== 'circulo' && selectedShape?.type !== 'retangulo') return;
     const { name, value } = e.target;
     const newLinha = {
       ...selectedShape.linha,
@@ -113,7 +115,8 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
   };
 
   const handleLineColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!selectedShape || selectedShape.type === 'slider' || selectedShape.type === 'programming' || selectedShape.type === 'button') return;
+    // FIX: Correctly narrow the type of `selectedShape` to ensure it has the `linha` property.
+    if (selectedShape?.type !== 'circulo' && selectedShape?.type !== 'retangulo') return;
     const newColor = hexToRgba(e.target.value);
     const newLinha = {
       ...selectedShape.linha,
@@ -157,15 +160,30 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
     updatedMapping: Partial<InputMapping | OutputMapping>
   ) => {
     if (selectedShape?.type !== 'firmata') return;
-    const newMappings = { ...selectedShape.mappings };
-    const newTypedMappings = [...newMappings[type]];
-    newTypedMappings[index] = { ...newTypedMappings[index], ...updatedMapping };
-    
-    if (('targetId' in updatedMapping) || ('sourceId' in updatedMapping)) {
-        (newTypedMappings[index] as any).property = '';
+
+    const mappings = { ...selectedShape.mappings };
+
+    // FIX: Split the logic for inputs and outputs to handle their distinct types safely.
+    // This resolves an error where properties from one mapping type could be incorrectly assigned to the other.
+    if (type === 'inputs') {
+      const newInputs = [...mappings.inputs];
+      const newMapping = { ...newInputs[index], ...(updatedMapping as Partial<InputMapping>) };
+      if ('targetId' in updatedMapping) {
+        newMapping.property = '';
+      }
+      newInputs[index] = newMapping;
+      mappings.inputs = newInputs;
+    } else { // outputs
+      const newOutputs = [...mappings.outputs];
+      const newMapping = { ...newOutputs[index], ...(updatedMapping as Partial<OutputMapping>) };
+      if ('sourceId' in updatedMapping) {
+        newMapping.property = '';
+      }
+      newOutputs[index] = newMapping;
+      mappings.outputs = newOutputs;
     }
-    
-    onUpdateShape(selectedShape.id, { mappings: { ...newMappings, [type]: newTypedMappings } });
+
+    onUpdateShape(selectedShape.id, { mappings });
   };
 
   const addMapping = (type: 'inputs' | 'outputs') => {
