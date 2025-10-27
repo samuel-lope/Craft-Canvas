@@ -44,9 +44,15 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
     if (!selectedShape) return;
     const { name, value, type } = e.target;
     
-    let finalValue: string | number = value;
+    let finalValue: string | number | null | boolean = value;
     if (type === 'number') {
         finalValue = parseFloat(value) || 0;
+    }
+    if (name === 'inheritedSliderId' && value === '') {
+      finalValue = null;
+    }
+    if (type === 'checkbox') {
+        finalValue = (e.target as HTMLInputElement).checked;
     }
 
     onUpdateShape(selectedShape.id, { [name]: finalValue } as Partial<Shape>);
@@ -106,9 +112,36 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                 </div>
 
                 <PropertyInput label="Property" name="targetProperty" value={selectedShape.targetProperty} onChange={handleInputChange} />
+                
+                <div className="flex items-center">
+                    <label className="w-20 text-sm text-gray-400 capitalize">Inherit From</label>
+                    <select
+                        name="inheritedSliderId"
+                        value={selectedShape.inheritedSliderId || ''}
+                        onChange={handleInputChange}
+                        className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                        <option value="">None</option>
+                        {shapes.filter(s => s.id !== selectedShape.id && s.type === 'slider').map(s => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                        ))}
+                    </select>
+                </div>
+
                 <PropertyInput label="Min" name="min" value={selectedShape.min} onChange={handleInputChange} type="number" />
                 <PropertyInput label="Max" name="max" value={selectedShape.max} onChange={handleInputChange} type="number" />
                 
+                <div className="flex items-center">
+                    <label className="w-20 text-sm text-gray-400">Show Label</label>
+                    <input 
+                        type="checkbox"
+                        name="showLabel"
+                        checked={selectedShape.showLabel}
+                        onChange={(e) => onUpdateShape(selectedShape.id, { showLabel: e.target.checked })}
+                        className="w-5 h-5 bg-gray-700 text-indigo-500 rounded focus:ring-indigo-500"
+                    />
+                </div>
+
                 <div className="flex items-center">
                     <label className="w-20 text-sm text-gray-400">Use Avg</label>
                     <input 

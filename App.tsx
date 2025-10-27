@@ -92,7 +92,8 @@ const App: React.FC = () => {
           max: 500,
           inheritedSliderId: null,
           useMovingAverage: false,
-          movingAverageWindow: 10
+          movingAverageWindow: 10,
+          showLabel: true,
       };
       newShape = slider;
     }
@@ -106,28 +107,61 @@ const App: React.FC = () => {
   
   const updateShape = useCallback((shapeId: string, updatedProperties: Partial<Shape>) => {
     setAppData(prevData => {
-      const shapeToUpdate = prevData.objects.find(s => s.id === shapeId);
-      if (!shapeToUpdate) return prevData;
-  
-      const newShape = { ...shapeToUpdate, ...updatedProperties };
-      let newObjects = prevData.objects.map(s => (s.id === shapeId ? newShape : s));
-      
-      if (newShape.type === 'slider' && 'value' in updatedProperties) {
-        const slider = newShape as Slider;
-        if (slider.targetId && slider.targetProperty) {
-          newObjects = newObjects.map(obj => {
-            if (obj.id === slider.targetId) {
-               const newTarget = { ...obj, [slider.targetProperty]: slider.value };
-               return newTarget;
+        let objects = [...prevData.objects];
+        
+        const updateQueue: { id: string, props: Partial<Shape> }[] = [{ id: shapeId, props: updatedProperties }];
+        const processedIds = new Set<string>();
+
+        while (updateQueue.length > 0) {
+            const { id, props } = updateQueue.shift()!;
+
+            // Prevent infinite loops from circular dependencies
+            if (processedIds.has(id) && !('value' in props)) continue;
+            
+            const shapeIndex = objects.findIndex(s => s.id === id);
+            if (shapeIndex === -1) continue;
+
+            const oldShape = objects[shapeIndex];
+            const updatedShape = { ...oldShape, ...props };
+            objects[shapeIndex] = updatedShape;
+            processedIds.add(id);
+
+            // 1. Propagate to target (for sliders)
+            if (updatedShape.type === 'slider' && 'value' in props) {
+                if (updatedShape.targetId && updatedShape.targetProperty) {
+                    const targetIndex = objects.findIndex(o => o.id === updatedShape.targetId);
+                    if (targetIndex !== -1) {
+                        const targetShape = objects[targetIndex];
+                        const newTarget = { ...targetShape, [updatedShape.targetProperty]: updatedShape.value };
+                        objects[targetIndex] = newTarget;
+                    }
+                }
             }
-            return obj;
-          });
+
+            // 2. Propagate to inherited sliders (if this is a master slider)
+            if (updatedShape.type === 'slider' && 'value' in props) {
+                const masterSlider = updatedShape;
+                objects.forEach(slaveCandidate => {
+                    if (slaveCandidate.type === 'slider' && slaveCandidate.inheritedSliderId === masterSlider.id) {
+                        const slaveSlider = slaveCandidate;
+                        const masterRange = masterSlider.max - masterSlider.min;
+                        const slaveRange = slaveSlider.max - slaveSlider.min;
+                        
+                        const newSlaveValue = masterRange === 0
+                            ? slaveSlider.min
+                            : slaveSlider.min + ((masterSlider.value - masterSlider.min) / masterRange) * slaveRange;
+                        
+                        if (slaveSlider.value !== newSlaveValue) {
+                           updateQueue.push({ id: slaveSlider.id, props: { value: newSlaveValue } });
+                        }
+                    }
+                });
+            }
         }
-      }
-      
-      return { ...prevData, objects: newObjects };
+        
+        return { ...prevData, objects };
     });
-  }, []);
+}, []);
 
   const handleAddCircle = () => addShape('circulo');
   const handleAddRectangle = () => addShape('retangulo');

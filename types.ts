@@ -52,6 +52,7 @@ export interface Slider {
   inheritedSliderId: string | null;
   useMovingAverage: boolean;
   movingAverageWindow: number;
+  showLabel: boolean;
 }
 
 

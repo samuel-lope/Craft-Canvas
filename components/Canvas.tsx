@@ -242,7 +242,7 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
             const trackHeight = 6;
             const thumbWidth = 10;
 
-            const { x, y, value, min, max } = shape;
+            const { x, y, value, min, max, nome, showLabel } = shape;
             const trackX = x - SLIDER_WIDTH / 2;
             const trackY = y - trackHeight / 2;
             
@@ -253,6 +253,18 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
     
             return (
                 <g key={shape.id} onMouseDown={e => handleMouseDownOnShape(e, shape)} className="cursor-move">
+                    {showLabel && (
+                        <text
+                            x={x}
+                            y={y - 20}
+                            textAnchor="middle"
+                            fill={isSelected ? 'white' : '#a0aec0'}
+                            fontSize="12"
+                            className="pointer-events-none select-none"
+                        >
+                           {nome}: {Math.round(value)}
+                        </text>
+                    )}
                     <rect 
                         x={trackX}
                         y={trackY}
