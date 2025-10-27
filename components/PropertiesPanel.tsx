@@ -61,6 +61,17 @@ const getSourceProperties = (sourceShape: Shape | null | undefined): string[] =>
     return numericKeys.sort();
 }
 
+const analogPins = [
+  { label: 'A0', value: 14 },
+  { label: 'A1', value: 15 },
+  { label: 'A2', value: 16 },
+  { label: 'A3', value: 17 },
+  { label: 'A4', value: 18 },
+  { label: 'A5', value: 19 },
+  { label: 'A6', value: 20 },
+  { label: 'A7', value: 21 },
+];
+
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes, onUpdateShape, onDeleteShape }) => {
 
@@ -422,15 +433,36 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, shapes
                         {selectedShape.mappings.inputs.map((mapping, index) => {
                              const targetShape = shapes.find(s => s.id === mapping.targetId);
                              const targetProperties = getTargetProperties(targetShape);
+                             const pinLabel = mapping.mode === 'Analog' ? `Pin ${analogPins.find(p => p.value === mapping.pin)?.label || 'A?'}` : `Pin ${mapping.pin}`;
                              return (
                                 <div key={`in-${index}`} className="p-2 bg-gray-800 rounded space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-sm font-bold text-gray-400">Input Pin {mapping.pin}</span>
+                                        <span className="text-sm font-bold text-gray-400">Input {pinLabel}</span>
                                         <button onClick={() => deleteMapping('inputs', index)} className="text-red-500 hover:text-red-400 text-xs">Delete</button>
                                     </div>
                                     <div className="flex space-x-2">
-                                        <input type="number" value={mapping.pin} onChange={e => handleMappingChange('inputs', index, { pin: parseInt(e.target.value) || 0 })} placeholder="Pin" className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm" />
-                                        <select value={mapping.mode} onChange={e => handleMappingChange('inputs', index, { mode: e.target.value as 'Analog' | 'Digital' })} className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm">
+                                        {mapping.mode === 'Analog' ? (
+                                            <select
+                                                value={mapping.pin}
+                                                onChange={e => handleMappingChange('inputs', index, { pin: parseInt(e.target.value) })}
+                                                className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm"
+                                            >
+                                                {analogPins.map(p => (
+                                                    <option key={p.value} value={p.value}>{p.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <input type="number" value={mapping.pin} onChange={e => handleMappingChange('inputs', index, { pin: parseInt(e.target.value) || 0 })} placeholder="Pin" className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm" />
+                                        )}
+                                        <select 
+                                            value={mapping.mode} 
+                                            onChange={e => {
+                                                const newMode = e.target.value as 'Analog' | 'Digital';
+                                                const newPin = newMode === 'Analog' ? 14 : 2; // Default to A0 or D2
+                                                handleMappingChange('inputs', index, { mode: newMode, pin: newPin })
+                                            }} 
+                                            className="w-1/2 bg-gray-700 text-white rounded px-2 py-1 text-sm"
+                                        >
                                             <option>Analog</option>
                                             <option>Digital</option>
                                         </select>
