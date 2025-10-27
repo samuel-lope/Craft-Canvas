@@ -59,6 +59,7 @@ const App: React.FC = () => {
   const [selectedShapeId, setSelectedShapeId] = useState<string | null>(null);
   const [executionState, setExecutionState] = useState<Record<string, number>>({});
   const triggerCooldowns = useRef<Record<string, boolean>>({});
+  const executeProgrammingStepRef = useRef<((progId: string, getLinhas: (prog: Programming) => ProgrammingLine[]) => void) | null>(null);
   const firmataConnections = useRef<Map<string, FirmataConnection>>(new Map());
   const digitalPortStates = useRef<Record<string, number[]>>({});
   const lastSentOutputValues = useRef<Record<string, any>>({});
@@ -234,13 +235,21 @@ const App: React.FC = () => {
           if (lineToExecute) {
               const { targetObjectId, property, value } = lineToExecute;
               if (targetObjectId && property) {
-                  // Use a timeout to de-couple the state update from this call
-                  setTimeout(() => updateShape(targetObjectId, { [property]: value }), 0);
+                  // FIX: Call `updateShapeAndPropagate` to ensure that changes from the programming block
+                  // trigger the full propagation logic, making sliders behave as expected.
+                  setTimeout(() => updateShapeAndPropagate(targetObjectId, { [property]: value }), 0);
               }
           }
           return { ...prevState, [progId]: nextOrdem };
       });
-  }, [updateShape]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // FIX: Keep a ref to the latest `executeProgrammingStep` function to break a circular dependency
+  // with `updateShapeAndPropagate`. This allows them to call each other safely without performance penalties.
+  useEffect(() => {
+    executeProgrammingStepRef.current = executeProgrammingStep;
+  }, [executeProgrammingStep]);
 
   // A more advanced update handler that also manages propagation and triggers.
   const updateShapeAndPropagate = useCallback((shapeId: string, updatedProperties: Partial<Shape>) => {
@@ -304,14 +313,14 @@ const App: React.FC = () => {
         // Trigger programming blocks outside the update loop.
         triggeredProgs.forEach(progId => {
             const prog = objects.find(o => o.id === progId) as Programming;
-            if (prog) {
-                 executeProgrammingStep(prog.id, (p) => p.linhas);
+            if (prog && executeProgrammingStepRef.current) {
+                 executeProgrammingStepRef.current(prog.id, (p) => p.linhas);
             }
         });
 
         return { ...prevData, objects };
     });
-  }, [executeProgrammingStep]);
+  }, []);
 
 
   useEffect(() => {
