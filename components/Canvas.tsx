@@ -53,44 +53,44 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
   const handleMouseMove = useCallback((e: globalThis.MouseEvent) => {
     if (!interaction) return;
     const { x, y } = getSVGPoint(e as unknown as MouseEvent);
-    const { type, shape, offsetX, offsetY } = interaction;
+    const { type, shape: initialShape, offsetX, offsetY } = interaction;
 
     if (type === 'move') {
-      onUpdateShape(shape.id, { x: x - offsetX, y: y - offsetY });
+      onUpdateShape(initialShape.id, { x: x - offsetX, y: y - offsetY });
     } else if (type === 'resize') {
        const { handle } = interaction;
-       let { x: newX, y: newY } = shape;
        
-       if (shape.type === 'circulo') {
-            const dx = x - shape.x;
-            const dy = y - shape.y;
+       if (initialShape.type === 'circulo') {
+            const dx = x - initialShape.x;
+            const dy = y - initialShape.y;
             const newRadius = Math.sqrt(dx * dx + dy * dy);
-            onUpdateShape(shape.id, { diametro: newRadius * 2 });
-       } else if (shape.type === 'retangulo') {
-            let { largura, altura } = shape;
-            const dx = x - offsetX;
-            const dy = y - offsetY;
+            onUpdateShape(initialShape.id, { diametro: newRadius * 2 });
+       } else if (initialShape.type === 'retangulo') {
+            const { offsetX: startMouseX, offsetY: startMouseY } = interaction;
+            let { x: newX, y: newY, largura: newW, altura: newH } = initialShape as Rectangle;
+            
+            const dx = x - startMouseX;
+            const dy = y - startMouseY;
 
             if (handle.includes('right')) {
-                largura += dx;
-                newX += dx / 2;
+                newW = initialShape.largura + dx;
+                newX = initialShape.x + dx / 2;
             }
             if (handle.includes('left')) {
-                largura -= dx;
-                newX += dx / 2;
+                newW = initialShape.largura - dx;
+                newX = initialShape.x + dx / 2;
             }
             if (handle.includes('bottom')) {
-                altura += dy;
-                newY += dy / 2;
+                newH = initialShape.altura + dy;
+                newY = initialShape.y + dy / 2;
             }
             if (handle.includes('top')) {
-                altura -= dy;
-                newY += dy / 2;
+                newH = initialShape.altura - dy;
+                newY = initialShape.y + dy / 2;
             }
 
-            if(largura > 0 && altura > 0) {
-                 onUpdateShape(shape.id, { x: newX, y: newY, largura, altura });
-                 setInteraction({...interaction, offsetX: x, offsetY: y });
+            if(newW > HANDLE_SIZE && newH > HANDLE_SIZE) {
+                 onUpdateShape(initialShape.id, { x: newX, y: newY, largura: newW, altura: newH });
             }
        }
     }
@@ -125,7 +125,7 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
             { id: 'right', cx: x + r, cy: y, cursor: 'ew-resize' },
         ];
         return handles.map(h => 
-            <circle key={h.id} cx={h.cx} cy={h.cy} r={HANDLE_SIZE/2} fill="white" stroke="#3b82f6" className={`cursor-${h.cursor}`} onMouseDown={e => handleMouseDownOnHandle(e, shape, h.id)} />
+            <circle key={h.id} cx={h.cx} cy={h.cy} r={HANDLE_SIZE/2} fill="white" stroke="#3b82f6" style={{ cursor: h.cursor }} onMouseDown={e => handleMouseDownOnHandle(e, shape, h.id)} />
         );
       } else if (shape.type === 'retangulo') {
         const { x, y, largura, altura } = shape;
@@ -136,9 +136,13 @@ const Canvas: React.FC<CanvasProps> = ({ shapes, selectedShapeId, onSelectShape,
             { id: 'top-right', x: x + halfW, y: y - halfH, cursor: 'nesw-resize' },
             { id: 'bottom-left', x: x - halfW, y: y + halfH, cursor: 'nesw-resize' },
             { id: 'bottom-right', x: x + halfW, y: y + halfH, cursor: 'nwse-resize' },
+            { id: 'top', x: x, y: y - halfH, cursor: 'ns-resize' },
+            { id: 'bottom', x: x, y: y + halfH, cursor: 'ns-resize' },
+            { id: 'left', x: x - halfW, y: y, cursor: 'ew-resize' },
+            { id: 'right', x: x + halfW, y: y, cursor: 'ew-resize' },
         ];
          return handles.map(h =>
-            <rect key={h.id} x={h.x - HANDLE_SIZE/2} y={h.y-HANDLE_SIZE/2} width={HANDLE_SIZE} height={HANDLE_SIZE} fill="white" stroke="#3b82f6" className={`cursor-${h.cursor}`} onMouseDown={e => handleMouseDownOnHandle(e, shape, h.id)} />
+            <rect key={h.id} x={h.x - HANDLE_SIZE/2} y={h.y-HANDLE_SIZE/2} width={HANDLE_SIZE} height={HANDLE_SIZE} fill="white" stroke="#3b82f6" style={{ cursor: h.cursor }} onMouseDown={e => handleMouseDownOnHandle(e, shape, h.id)} />
          );
       }
       return null;

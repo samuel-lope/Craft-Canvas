@@ -6,18 +6,35 @@ interface PropertiesPanelProps {
   onUpdateShape: (shapeId: string, updatedProperties: Partial<Shape>) => void;
 }
 
-const PropertyInput: React.FC<{ label: string; value: string | number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; }> = 
-({ label, value, onChange, type = 'text' }) => (
+const PropertyInput: React.FC<{ label: string; name: string; value: string | number; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; }> = 
+({ label, name, value, onChange, type = 'text' }) => (
     <div className="flex items-center">
         <label className="w-20 text-sm text-gray-400 capitalize">{label}</label>
         <input 
-            type={type} 
+            type={type}
+            name={name}
             value={value} 
             onChange={onChange}
             className="w-full bg-gray-700 text-white rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
         />
     </div>
 );
+
+const rgbaToHex = (rgba: string): string => {
+    const match = rgba.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*[\d.]+)?\)/);
+    if (!match) return '#000000';
+    
+    const toHex = (c: string) => parseInt(c).toString(16).padStart(2, '0');
+    
+    return `#${toHex(match[1])}${toHex(match[2])}${toHex(match[3])}`;
+};
+
+const hexToRgba = (hex: string, alpha = 1): string => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
 
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, onUpdateShape }) => {
@@ -31,7 +48,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, onUpda
 
   const handleColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedShape) return;
-     const newColor = e.target.value;
+     const newColor = hexToRgba(e.target.value);
      const updatedHandlers = {
          ...selectedShape.collisionHandlers,
          onNoCollision: {
@@ -48,17 +65,17 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, onUpda
       {selectedShape ? (
         <div className="space-y-3">
           <PropertyInput label="Name" name="nome" value={selectedShape.nome} onChange={handleInputChange} />
-          <PropertyInput label="X" name="x" value={selectedShape.x} onChange={handleInputChange} type="number" />
-          <PropertyInput label="Y" name="y" value={selectedShape.y} onChange={handleInputChange} type="number" />
+          <PropertyInput label="X" name="x" value={Math.round(selectedShape.x)} onChange={handleInputChange} type="number" />
+          <PropertyInput label="Y" name="y" value={Math.round(selectedShape.y)} onChange={handleInputChange} type="number" />
 
           {selectedShape.type === 'circulo' && (
-             <PropertyInput label="Diameter" name="diametro" value={(selectedShape as Circle).diametro} onChange={handleInputChange} type="number" />
+             <PropertyInput label="Diameter" name="diametro" value={Math.round((selectedShape as Circle).diametro)} onChange={handleInputChange} type="number" />
           )}
 
           {selectedShape.type === 'retangulo' && (
             <>
-              <PropertyInput label="Width" name="largura" value={(selectedShape as Rectangle).largura} onChange={handleInputChange} type="number" />
-              <PropertyInput label="Height" name="altura" value={(selectedShape as Rectangle).altura} onChange={handleInputChange} type="number" />
+              <PropertyInput label="Width" name="largura" value={Math.round((selectedShape as Rectangle).largura)} onChange={handleInputChange} type="number" />
+              <PropertyInput label="Height" name="altura" value={Math.round((selectedShape as Rectangle).altura)} onChange={handleInputChange} type="number" />
               <PropertyInput label="Rotation" name="rotation" value={(selectedShape as Rectangle).rotation} onChange={handleInputChange} type="number" />
             </>
           )}
@@ -67,9 +84,9 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedShape, onUpda
              <label className="w-20 text-sm text-gray-400 capitalize">Color</label>
              <input
                 type="color"
-                value={selectedShape.collisionHandlers.onNoCollision.cor}
+                value={rgbaToHex(selectedShape.collisionHandlers.onNoCollision.cor)}
                 onChange={handleColorChange}
-                className="w-full h-8 p-1 bg-gray-700 rounded cursor-pointer"
+                className="w-full h-8 p-1 bg-gray-700 border-none rounded cursor-pointer"
              />
           </div>
 
